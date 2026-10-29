@@ -493,19 +493,67 @@ var PodiumAI = (function () {
     "each with a suggested replacement; other clear slang, misspellings, or grammar errors in the same spirit. " +
     "Do NOT flag spacing or missing terminal punctuation (the client handles those deterministically). NEVER rewrite a sentence for style. " +
     "NEVER judge, steer, or mention the author's topic, position, or meaning. Coherent professional wording passes with empty lists. " +
-    "Respond with ONLY this JSON, no other text: {\"hard\": [\"exact quoted span\", ...], \"soft\": [{\"word\": \"exact quoted word\", \"suggestion\": \"replacement\", \"reason\": \"one-line why\"}, ...]}";
+    "Also identify the draft's language: return its BCP 47 code in lang (\"en\" for English, \"es\" for Spanish, etc.; \"und\" when the language cannot be determined). " +
+    "Respond with ONLY this JSON, no other text: {\"hard\": [\"exact quoted span\", ...], \"soft\": [{\"word\": \"exact quoted word\", \"suggestion\": \"replacement\", \"reason\": \"one-line why\"}, ...], \"lang\": \"en\"}";
+  /* Step 1 of the multilingual gate (Prompt 2): detect the draft's language
+     first, then judge it IN that language. Detection is advisory and cheap:
+     any failure (no key, timeout, malformed reply) means "und", and the
+     judgment below falls back to English. Never a block. */
+  var DETECT_SYSTEM = "Identify the language of this civic-post draft. " +
+    "Respond with ONLY this JSON, no other text: {\"lang\": \"BCP 47 code\"}. " +
+    "Use \"en\" for English, \"es\" for Spanish, and so on; use \"und\" when the language cannot be determined.";
+  function validLangResult(o) {
+    if (!o || typeof o.lang !== "string") return "und";
+    var c = o.lang.toLowerCase();
+    return /^[a-z]{2,3}(-[a-z0-9]+)?$/.test(c) ? c : "und";
+  }
+  function detectLangLive(text, signal) {
+    return liveChat(DETECT_SYSTEM, "Draft:\n" + String(text).slice(0, 8000), signal).then(function (o) {
+      return validLangResult(o);
+    }, function () { return "und"; });
+  }
+  var langNamesEn = null;
+  function langNameEn(code) {
+    try {
+      if (typeof Intl === "undefined" || !Intl.DisplayNames) return code;
+      if (!langNamesEn) langNamesEn = new Intl.DisplayNames(["en"], { type: "language" });
+      var n = langNamesEn.of(code);
+      return (n && n !== code) ? n : code;
+    } catch (e) { return code; }
+  }
+  function isEnglishCode(lang) {
+    return lang === "en" || (typeof lang === "string" && lang.indexOf("en-") === 0);
+  }
+  /* The judgment instruction for a detected language. English keeps the base
+     prompt byte-identical; any other language appends the judge-in-that-language
+     sentence; undetermined appends the best-effort English fallback. The verdict
+     rules never change — only the language of judgment and response. */
+  function withLangInstruction(base, lang) {
+    if (isEnglishCode(lang)) return base;
+    if (lang && lang !== "und") {
+      return base + " The post is written in " + langNameEn(lang) + " (" + lang + "). " +
+        "Judge it in that language, and write all verdict explanations, hold messages, and rewrite suggestions in that language.";
+    }
+    return base + " The post's language could not be determined. " +
+      "Judge it best-effort and write all verdict explanations, hold messages, and rewrite suggestions in English.";
+  }
   function validGateResult(o) {
     if (!o || !Array.isArray(o.hard) || !Array.isArray(o.soft)) return null;
     var hard = o.hard.filter(function (x) { return typeof x === "string" && x; }).slice(0, 20);
     var soft = o.soft.filter(function (f) {
       return f && typeof f.word === "string" && typeof f.suggestion === "string" && typeof f.reason === "string";
     }).slice(0, 20);
-    return { hard: hard, soft: soft };
+    /* lang is advisory only: absent or malformed means undetermined, and it
+       never affects the hard/soft verdict above. */
+    var lang = (o && typeof o.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]+)?$/.test(o.lang)) ? o.lang.toLowerCase() : "und";
+    return { hard: hard, soft: soft, lang: lang };
   }
   function checkTextLive(text) {
     if (!getKey()) return Promise.resolve(null);
     return withTimeout(function (signal) {
-      return liveChat(GATE_SYSTEM, "Draft:\n" + String(text).slice(0, 8000), signal).then(validGateResult);
+      return detectLangLive(text, signal).then(function (lang) {
+        return liveChat(withLangInstruction(GATE_SYSTEM, lang), "Draft:\n" + String(text).slice(0, 8000), signal).then(validGateResult);
+      });
     }, LIVE_TIMEOUT_MS).then(function (r) {
       var ok = !!r;
       if (ok) {
@@ -551,7 +599,9 @@ var PodiumAI = (function () {
   function checkClarityLive(text) {
     if (!getKey()) return Promise.resolve(null);
     return withTimeout(function (signal) {
-      return liveChat(CLARITY_SYSTEM, "Draft:\n" + String(text).slice(0, 8000), signal).then(validClarityResult);
+      return detectLangLive(text, signal).then(function (lang) {
+        return liveChat(withLangInstruction(CLARITY_SYSTEM, lang), "Draft:\n" + String(text).slice(0, 8000), signal).then(validClarityResult);
+      });
     }, LIVE_TIMEOUT_MS).then(function (r) {
       setLiveMode(!!r);
       return r;
@@ -648,6 +698,56 @@ var PodiumAI = (function () {
       return text.replace(/^Sample committee response:\s*/i, "").trim() || null;
     });
   }
+  /* ---------- on-demand post translation (multilingual slice, step 4) ----
+     Reader aid only: the original post is ALWAYS the official record and is
+     never altered, hidden, or replaced. Translation runs only when the reader
+     clicks, into the reader's current UI language. Same endpoint and same
+     sessionStorage footer key as the other transports -- no second key.
+     Model muse-spark-1.3 per the translate-only system prompt below.
+     On ANY failure (no key, timeout, error, model rejected) resolves null
+     so the caller shows the unavailable note. NEVER retries, NEVER falls
+     back to another model: one attempt, then the note. */
+  var TRANSLATE_TRANSPORT = {
+    endpoint: "https://api.meta.ai/v1/chat/completions",
+    model: "muse-spark-1.3"
+  };
+  var TRANSLATE_TIMEOUT_MS = 30000; /* one attempt, same budget as drafts */
+  function translateSystem(sourceCode, targetCode) {
+    return "Translate the following text from " + langNameEn(sourceCode) +
+      " to " + langNameEn(targetCode) +
+      ". Translate only: do not correct, reword, summarize, or add anything. Return only the translation.";
+  }
+  function translateChat(systemText, userText) {
+    var t = TRANSLATE_TRANSPORT;
+    var key = getKey();
+    if (!t.endpoint || !t.model || !key) return Promise.resolve(null);
+    var content = systemText + "\n\n" + userText;
+    return withTimeout(function (signal) {
+      var opts = {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+        body: JSON.stringify({ model: t.model, messages: [{ role: "user", content: content }] })
+      };
+      if (signal) opts.signal = signal;
+      return fetch(t.endpoint, opts).then(function (resp) {
+        if (!resp.ok) throw new Error("model api " + resp.status);
+        return resp.json();
+      }).then(function (data) {
+        var msg = data && data.choices && data.choices[0] && data.choices[0].message;
+        var text = msg && typeof msg.content === "string" ? msg.content.trim() : "";
+        return text || null;
+      }, function () { return null; });
+    }, TRANSLATE_TIMEOUT_MS);
+  }
+  /* Translate a post body for display. Returns the translated text, or null
+     when unavailable (caller shows the unavailable note; no retry). The
+     stored post and every record keep the original. */
+  function translatePost(text, sourceCode, targetCode) {
+    if (!text || !sourceCode || !targetCode) return Promise.resolve(null);
+    if (!getKey()) return Promise.resolve(null);
+    return translateChat(translateSystem(sourceCode, targetCode), String(text));
+  }
+
 
   var api = {
     mode: "stub",
@@ -665,6 +765,7 @@ var PodiumAI = (function () {
     suggestTopicLive: suggestTopicLive,
     topicLabels: TOPIC_KEYWORDS.map(function (pair) { return pair[0]; }),
     draftCommitteeAnswer: draftCommitteeAnswer,
+    translatePost: translatePost,
     WONDER_MODEL: WONDER_TRANSPORT.model,
     getKey: getKey,
     setKey: setKey,

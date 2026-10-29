@@ -199,6 +199,12 @@ var PodiumStore = (function () {
         if (!p.authorState && seedPost[p.id] && seedPost[p.id].authorState) { p.authorState = seedPost[p.id].authorState; filled = true; }
       });
     }
+    /* Language-tag backfill (multilingual step 1): old saves predate the
+       frozen lang tag, and all old content is English. Never overwritten
+       where present. */
+    (s.posts || []).forEach(function (p) {
+      if (p && !p.lang) { p.lang = "en"; filled = true; }
+    });
     /* One-time stamp migration: user posts saved with ISO-UTC createdAt
        predate the naive ET-wall format. Convert in place so string ordering
        matches seed posts; the instant is preserved. */
@@ -519,7 +525,7 @@ var PodiumStore = (function () {
     return changed;
   }
 
-  function publishPost(s, userId, cycleId, topic, body, nowEt) {
+  function publishPost(s, userId, cycleId, topic, body, nowEt, lang) {
     if (userPostInCycle(s, userId, cycleId)) return null;
     s.userSeq += 1;
     s.refSeq += 1;
@@ -531,6 +537,7 @@ var PodiumStore = (function () {
       authorId: userId,
       topic: topic,
       body: body,
+      lang: (typeof lang === "string" && lang) ? lang : "und",
       authorState: (citizenById(s, userId).state || ""),
       votes: 0,
       createdAt: etStamp(nowEt || now),

@@ -35,11 +35,419 @@
     return body.slice(0, n).replace(/\s\S*$/, "") + "\u2026";
   }
   function votesLabel(n) {
-    return n + " vote" + (n === 1 ? "" : "s");
+    return n + " " + (n === 1 ? T("vote.one") : T("vote.many"));
   }
   /* Frozen author state (display metadata only; empty means none shown). */
   function stateSuffix(p) {
     return p && p.authorState ? " \u00b7 " + esc(p.authorState) : "";
+  }
+  /* Frozen language tag, step 1 of the multilingual slice: rendered beside
+     the author/state line in the existing muted meta style. "und" (and a
+     missing tag) renders nothing. Guarded: without Intl, or for a code
+     Intl does not know, the raw code shows. */
+  var langDisplayNames = null;
+  try {
+    if (typeof Intl !== "undefined" && Intl.DisplayNames) {
+      langDisplayNames = new Intl.DisplayNames(["en"], { type: "language" });
+    }
+  } catch (e) { langDisplayNames = null; }
+  function langName(p) {
+    var code = p && typeof p.lang === "string" ? p.lang : "";
+    if (!code || code === "und") return "";
+    if (langDisplayNames) {
+      try {
+        var n = langDisplayNames.of(code);
+        if (n) return n;
+      } catch (e) { /* unknown code: show it raw below */ }
+    }
+    return code;
+  }
+  function langSuffix(p) {
+    var n = langName(p);
+    return n ? ' \u00b7 <span class="hint">' + esc(n) + "</span>" : "";
+  }
+  /* ---------- interface language (multilingual slice, step 3) ----------
+     All user-visible chrome renders through the strings table
+     (js/strings.js, exposed as PodiumStrings): en values are the verbatim
+     pre-existing English; es values translate. Every es branch is gated
+     on the stored language. Post bodies, names, states, refs, votes,
+     numbers, and dates never pass through here.
+     The test runner does not load js/strings.js, so when PodiumStrings is
+     absent the helpers fall back to EN_CHROME below: a mechanical copy of
+     the table en column (verified identical), English-only. No test file
+     is touched for this. */
+  var EN_CHROME = {
+    /* document */
+    "doc.title": "The Podium \u2014 A Civic Portal",
+    "skip.main": "Skip to main content",
+    "gov.text": "An official website of the United States government",
+    "gov.how": "Here\u2019s how you know.",
+    /* header */
+    "brand.sub": "The purpose of this platform is to ensure that every citizen has the opportunity to be heard by the nation.",
+    "citizen.signedout": "Not signed in",
+    "citizen.signin": "Sign in",
+    "citizen.signedin": "Signed in as",
+    "citizen.switch": "Switch citizen",
+    "citizen.current": " (current)",
+    "citizen.verified": "\u2713 Verified (demo)",
+    "citizen.verified.chip": "\u2713 Verified citizen (demo)",
+    "citizen.verified.small": "\u2713 verified (demo)",
+    "citizen.verified.title": "Simulated verification for demo",
+    "citizen.state.label": "State (demo)",
+    "citizen.state.aria": "Your state (demo)",
+    "citizen.state.title": "Demo only: your stated state, not a verified record",
+    "citizen.state.unset": "State not set",
+    "lang.label": "Language",
+    /* tabs */
+    "tab.feed": "Live Feed",
+    "tab.briefing": "The Weekly Briefing",
+    "tab.prior": "Prior Posts & Answers",
+    "tab.status": "Status Updates",
+    "tab.watch": "Watch Live",
+    "tab.post": "Submit Post",
+    "tab.watchlive.badge": "LIVE",
+    "tab.watchlive.airing": "Watch Live, briefing on air now",
+    "nav.primary": "Primary",
+    /* verbatim rule card */
+    "rule.heading": "The Verbatim Rule",
+    "rule.reminder": "Reminder of the rule",
+    "rule.p1": "By the rules of this portal, the highest-voted post <strong>MUST</strong> be read aloud \u2014 word for word, exactly as its author wrote it \u2014 and discussed, by a representative of the United States, in front of the entire country. Another post, drawn at random, must be read and discussed the same way.",
+    "rule.p2": "AI will be used to detect profanity and errors, correct grammar, and suggest clearer formatting. It will never steer you: your topic, your position, or your meaning. And once your post is published, it is final.",
+    "rule.p3": "Keep in mind that your post may be read in front of the entire nation. Write in your most professional manner. Profanity, slang, and ridicule will not post. State your idea or concern plainly and professionally. You are not posting a comment. You are addressing the nation \u2014 speaking to and for every American. Give it the seriousness it deserves.",
+    "rule.readfull": "Read the full rule",
+    /* fine print */
+    "fine.summary": "Fine print (official register)",
+    "fine.lede": "All submissions are subject to automated pre-publication review. Submissions containing profanity, slurs, or personal attacks shall not be published. Submissions containing slang or errors materially affecting comprehensibility shall be held pending correction by the submitting party, with suggested revisions provided for consideration; no submission shall be altered by the System without the submitting party\u2019s express action. Weekly selections shall consist of (i) the submission receiving the highest number of votes during the applicable period and (ii) one (1) submission selected by random drawing from among all eligible published submissions. Selected submissions shall be read aloud in their entirety, verbatim, and discussed in the weekly briefing. A published submission is final and shall not be edited or redacted.",
+    "fine.statements": "Statements of policy, principles, and fundamentals",
+    "fine.purpose": "The purpose of this platform is to ensure that every citizen has the opportunity to be heard by the nation. Citizens will address the nation and speak on its behalf.",
+    "fine.li1": "The highest-voted post and one randomly drawn post are read aloud word-for-word, in full, by a U.S. representative and discussed in the weekly briefing. No editor stands between author and nation. Nothing is edited after posting.",
+    "fine.li2": "AI detects problems and suggests wording before publication only. It never steers a post's topic, position, or meaning, and never changes, substitutes, or declines a post on its own.",
+    "fine.li3": "Profanity, slurs, and personal attacks are hard-blocked and never publish. Slang, misspellings, grammar, and unclear text are held with suggested rewording; the author accepts or retypes, and AI never silently changes text. Held drafts are not published, do not enter the draw, and do not use the citizen's one-post slot.",
+    "fine.li4": "Once published, a post is final. It cannot be deleted, withdrawn, archived, or hidden.",
+    "fine.li5": "Voting is upvote-only. One vote per citizen per weekly cycle, switchable until voting closes Sunday at 11:59 PM ET.",
+    "fine.li6": "One post per citizen per weekly cycle.",
+    "fine.li7": "Posts are capped at 630 words.",
+    "fine.li8": "The random draw is rig-proof: the eligible pool is frozen in a fixed published order at the cutoff, and the position is the NIST Randomness Beacon value mod pool size, plus one. The draw is internal only, with no button, replay, or re-roll.",
+    "fine.li9": "The committee prepares answers only. It never alters, substitutes, delays, or declines a selection. It reviews selections a week ahead and routes each answer to the correct branch and level.",
+    "fine.li10": "The committee does not fund. It asks for funds and allocates funds.",
+    "fine.li11": "Committee answers start as AI drafts, reviewed, edited, and approved by a real committee member who is the answerer of record. AI never delivers a final answer alone and never touches a citizen post. The public sees only approved answers.",
+    "fine.li12": "An exact-duplicate post in the same cycle does not create a new post; the citizen is offered an upvote on the existing post, with no post-anyway exit. The draw pool excludes the winner and any post exactly matching the winner. Similar-but-distinct posts are advisory only.",
+    "fine.li13": "The Live Feed shows the current cycle only. Past-cycle posts that were never selected are deleted; selected posts are kept as the briefing record.",
+    "fine.li14": "Posting and voting run Monday 12:00 AM to Sunday 11:59 PM ET. The pool freezes at the Sunday cutoff, the draw is Monday at 12:00 PM ET, the committee has the week plus a Monday-Tuesday buffer, and the briefing airs Wednesdays at 1:00 PM ET as the fixed opening segment.",
+    "fine.li15": "This Week shows only the most recently aired briefing. Next Week shows the next briefing's selections. A briefing's replay publishes when that briefing airs. Prior Posts & Answers and Status Updates list aired selections only.",
+    "fine.li16": "Participation is for verified citizens. The demo uses simulated verification only and never collects or stores real identification.",
+    "fine.li17": "Language: a citizen may post in any language. The original post is the official record and is read aloud verbatim in the author's language. Translations are machine aids for readers and never replace the original.",
+    /* feed */
+    "feed.aria": "Feed of citizen posts",
+    "feed.order": "Feed order",
+    "feed.order.aria": "Feed order",
+    "watch.demo.aria": "Preview broadcast state",
+    "feed.recent": "Recent",
+    "feed.top": "Top Voted",
+    "feed.needs": "Needs Votes",
+    "feed.discover": "Discover",
+    "feed.topic": "Topic",
+    "feed.alltopics": "All topics",
+    "feed.topicfilter.aria": "Filter by topic",
+    "feed.search": "Keyword search",
+    "feed.search.ph": "e.g. bridges, school lunches",
+    "feed.perpage": "Per page",
+    "feed.voterule": "One vote per citizen per week. You can change it until voting closes Sunday at 11:59 PM ET.",
+    "feed.prev": "\u2190 Prev",
+    "feed.next": "Next \u2192",
+    "feed.page": "Page",
+    "feed.page.of": "of",
+    "feed.opened.open": "You opened a shared post. Sign in to upvote it. ",
+    "feed.opened.past": "You opened a shared post from a past week. Voting is closed on past weeks\u2019 posts. ",
+    "feed.showfull": "Show full feed",
+    "feed.gone": "This post is no longer available. Posts that are not selected for a weekly briefing are removed when their cycle closes. ",
+    "feed.gone.li": "This post is no longer available. Posts that are not selected for a weekly briefing are removed when their cycle closes.",
+    "feed.nocode": "No item with code {code}.",
+    "feed.nocode.li": "No post, answer, or update carries that code.",
+    "feed.code.thread": "Code {code}: jumping to that item in the thread.",
+    "feed.code.record": "Code {code}: post plus its answer and updates.",
+    "feed.note.top": "Highest-voted first. This week\u2019s leader becomes the top-voted briefing pick.",
+    "feed.note.needs": "Least-voted first, so unseen posts surface. These are this week\u2019s posts \u2014 voting is open on all of them.",
+    "feed.note.discover": "Shuffled for discovery \u2014 re-pick Discover for a fresh shuffle. These are this week\u2019s posts \u2014 voting is open on all of them.",
+    "feed.note.results.one": "1 result(s).",
+    "feed.note.results.many": "{n} result(s).",
+    "feed.note.recent": "Newest first. These are this week\u2019s posts \u2014 voting is open on all of them.",
+    "feed.note.filtered": " Filtered to topic \u201c{topic}\u201d ({n}).",
+    "feed.empty": "No posts here yet.",
+    "feed.fullrecord": "See full record",
+    "feed.fullrecord.ref": "Full record: {ref}",
+    /* votes */
+    "vote.up": "\u25b3 Upvote",
+    "vote.upvoted": "\u25b2 Upvoted",
+    "vote.one": "vote",
+    "vote.many": "votes",
+    "vote.yours": " \u00b7 Your vote",
+    "vote.closed": " \u00b7 voting closed",
+    "vote.upvoteit": "Upvote it instead",
+    "vote.upvoted.check": "Upvoted \u2713",
+    "vote.closedweek": "Voting closed (past week)",
+    "share.button": "Share",
+    "share.copied": "Link copied \u2713",
+    "share.failed": "Copy failed",
+    "cycle.voting": "voting now",
+    "date.now": "just now",
+    /* badges + selection words */
+    "badge.top": "Top-voted",
+    "badge.random": "Random pick",
+    "selbadge.top": "TOP-VOTED",
+    "selbadge.random": "RANDOM DRAW",
+    "selbadge.position": "position",
+    "selbadge.of": "of",
+    "lib.top": "Top-voted",
+    "lib.random": "Random draw",
+    "thread.top": "top-voted",
+    "thread.random": "random draw",
+    "seltitle.top": "Top-voted selection",
+    "seltitle.random": "Random-draw selection",
+    "pipe.top": "top-voted",
+    "pipe.random": "random pick",
+    "pipe.none": "not yet selected",
+    "stage.selected": "Selected",
+    "stage.committee": "In Committee Review",
+    "stage.briefed": "Briefed",
+    "stage.aria": "Pipeline stage: {stage}",
+    "stage.inline.selected": "selected",
+    "stage.inline.committee": "in committee",
+    "stage.inline.briefed": "briefed",
+    /* thread */
+    "thread.answer": "Official Answer",
+    "thread.update": "Update",
+    "thread.thispost": "this post",
+    "translate.button": "Translate",
+    "translate.label": "Machine translation to English \u2014 the original above is the official record.",
+    "translate.unavailable": "Translation unavailable right now.",
+    /* composer */
+    "post.aria": "Post composer",
+    "post.rule.applies": "The Verbatim Rule applies.",
+    "post.rule.text": "Your post may be read aloud, word for word, in front of the entire nation. Profanity, slang, and ridicule will not post. Once published, it is final.",
+    "post.rule.reminder": "Your post may be read aloud, word for word, in front of the entire nation. Profanity, slang, and ridicule will not post. Once published, it is final.",
+    "notice.signin": "<strong>Sign in to post.</strong> Pick a demo citizen to address the nation. ",
+    "notice.published.a": "<strong>One post per citizen per weekly cycle.</strong> You already published this week (",
+    "notice.published.b": "). You can still vote on this week\u2019s posts.",
+    "post.topic": "Topic",
+    "post.topic.hint": "Pick a topic, or accept the single AI suggestion at review.",
+    "post.timer.hint": "read-aloud time \u00b7 max 630 words",
+    "post.address": "Your address to the nation",
+    "post.text.ph": "State your idea or concern plainly and professionally\u2026",
+    "ai.live": "AI: live (Muse Spark)",
+    "ai.stub": "AI: local fallback",
+    "gate.overlimit": "Too long for the national reading: {n} of 630 words maximum. Shorten your post to fit the 4:30 read-aloud slot.",
+    "gate.hard": "<strong>Cannot publish:</strong> this draft contains {spans}, which counts as profanity, a slur, or a personal attack. Such posts are never published. Remove it and keep your address professional.",
+    "gate.soft": "<strong>Held for your correction:</strong> {n} wording issue(s) would embarrass you before a national audience. Accept a suggestion or retype the word yourself \u2014 nothing changes without your action.",
+    "chip.use": "Use \u201c{sug}\u201d",
+    "chip.remove": "Remove it",
+    "chip.aria.replace": "Replace {w} with {s}",
+    "chip.aria.remove": "Replace {w} by removing it",
+    "gate.punct": "Punctuation and spacing need a touch-up \u2014 one click fixes double spaces, spaces before punctuation, and the final period. ",
+    "gate.punct.fix": "Fix punctuation and spacing",
+    "gate.unclear": "<strong>Held so you can be heard clearly:</strong> this draft is hard to understand as written, so it cannot publish yet. This is not a refusal \u2014 your post is not declined. Use the help below, or fix the draft yourself; you can return and publish at any time.",
+    "gate.ok": "Wording check passed. Your topic, position, and meaning are yours alone \u2014 the check never touches them.",
+    "reason.live": "Live wording check.",
+    "offer.built": "Built only from your answers:",
+    "offer.proposed": "Proposed version \u2014 same meaning, clearer words:",
+    "offer.until": " Nothing publishes until you click \u201cUse this version.\u201d",
+    "offer.yours": "Your words:",
+    "offer.version": "Proposed version:",
+    "offer.use": "Use this version",
+    "offer.keep": "Keep my words",
+    "offer.hear": "Hear the proposed version",
+    "offer.novoice": "Your browser cannot read aloud; please read the proposed version above before approving.",
+    "prompts.title": "Help us understand \u2014 answer in your own words:",
+    "prompts.nooffer": " no rewrite is offered because no clear position could be found in the draft. Nothing is invented: a draft is built only from your answers, and only with your approval.",
+    "prompts.what": "What happened?",
+    "prompts.want": "What do you want fixed or changed?",
+    "prompts.who": "Who should fix it?",
+    "prompts.build": "Build my draft from these answers",
+    "prompts.needone": "Answer at least one question above, in your own words.",
+    "prompts.badwords": "These answers cannot be used as written: they contain wording that can never publish. Change the flagged words and try again.",
+    "hear.draft": "Hear this draft",
+    "hear.novoice": "Your browser cannot read text aloud.",
+    "preview.hear": "Hear it as the nation will",
+    "preview.publish": "Publish (final)",
+    "preview.back": "Back to editing",
+    "preview.title": "Weekly briefing \u2014 verbatim reading",
+    "preview.words": "words",
+    "preview.readaloud": "read aloud",
+    "preview.suggest.a": "AI topic suggestion, shown once at review \u2014 yours to accept or ignore: <strong>",
+    "preview.suggest.b": "</strong> ",
+    "preview.usetopic": "Use this topic",
+    "publish.note": "Publishing is final: posts cannot be edited or redacted. The AI checks wording only \u2014 never your topic, position, or meaning.",
+    "publish.done": "Published \u2014 final. Your post cannot be edited or redacted. It now stands for this week\u2019s vote.",
+    "voiced.title": "Already voiced",
+    "voiced.dismiss": "\u00d7 Dismiss",
+    "voiced.dismiss.aria": "Dismiss this suggestion",
+    "voiced.reminder": "A conflicting post may divide votes and reduce the likelihood of your concern being heard.",
+    "voiced.instead": "Vote for theirs instead",
+    "voiced.both": "Post mine and vote theirs too",
+    "voiced.asis": "Post mine as-is",
+    "copy.exists": "This post already exists in this cycle \u2014 upvote it to add your voice.",
+    "copy.existing": "<strong>Existing post:</strong> \u201c{quote}\u201d",
+    /* citizen modal */
+    "citizens.title": "Switch demo citizen",
+    "citizens.hint": "Simulated sign-in. No real identity is used. Pick any demo citizen to post and vote as them.",
+    "citizens.vote": "Sign in to vote \u2014 pick a demo citizen. No sign-in, no vote.",
+    "citizens.post": "Sign in to post \u2014 pick a demo citizen.",
+    "citizens.cancel": "Cancel",
+    /* briefing */
+    "briefing.aria": "Weekly briefing",
+    "briefing.title": "This week\u2019s briefing \u2014 {date}",
+    "briefing.lede1": "Two posts take the majority of the segment: the highest-voted post and one post drawn at random. Both are read aloud verbatim and answered. Follow-ups on earlier posts get only a brief live mention; the full record lives under Prior Posts & Answers and Status Updates.",
+    "briefing.lede2": "The locked weekly schedule (all times ET): posting and voting week Monday 00:00 \u2192 Sunday 23:59; cutoff Sunday 23:59, when the eligible pool is frozen and published; draw Monday 12:00, pre-announced; committee week Monday \u2192 Sunday to evaluate both selected posts and formulate both answers \u2014 answers ONLY, it can never alter, substitute, delay, or decline a selection; briefing Wednesday 1:00 PM. The Podium segment is the fixed opening segment of the Wednesday briefing: if no regular briefing is scheduled that Wednesday, the segment still runs standalone at the same time, same room, same cameras.",
+    "briefing.watch": "Watch Live \u2192",
+    "briefing.watch.hint": "Attend the airing of this briefing.",
+    "briefing.next": "Next Week",
+    "briefing.next.hint": "Selected posts in committee review. Answers are still being formulated \u2014 never presented as final. These selections are published after the Monday draw, once the draw has selected the posts: the full posts for the next briefing appear here from the draw onward, in full, with answers coming on the briefing date.",
+    "briefing.draw": "The random draw \u2014 verifiably fair",
+    "briefing.draw.lede": "The eligible pool is frozen and published <em>first</em> (all gate-passed posts since the last draw, minus the top-voted winner). The system runs the draw at the pre-announced time: <code>position = beacon value mod pool size + 1</code>. Random selection conducted using the NIST Randomness Beacon.",
+    "briefing.draw.excluded": "Excluded from the pool",
+    "briefing.draw.readonly": "Read-only record: pool size, beacon timestamp and value, computed position, and the drawn post. The draw is an internal system function \u2014 nothing here re-runs it.",
+    "briefing.draw.worked": "Worked example",
+    "briefing.draw.worked.body": "Pool of 12, beacon value ending \u20264839 \u2192 4839 mod 12 = 3 \u2192 +1 = <strong>post #4</strong>.",
+    "briefing.draw.committee": "Committee rule: the committee prepares answers ONLY. It can never alter, substitute, delay, or decline a selected post. It has one week to formulate an answer and route the topic to the right branch or level of government.",
+    "draw.cycle": "Cycle",
+    "draw.frozen": "Pool frozen",
+    "draw.frozen.val": "{cutoff} \u2014 {n} eligible posts (winner and winner-matching copies excluded), published before the draw",
+    "draw.beacon": "Beacon pulse",
+    "draw.beacon.val": "{time} \u2014 value {hex} (numeric excerpt {num})",
+    "draw.computation": "Computation",
+    "draw.computation.val": "{num} mod {size} = {r} \u2192 +1 = post #{pos}",
+    "draw.selected": "Selected",
+    "draw.winner": "already has the briefing\u2019s top slot",
+    "draw.dupe": "anti-flood deduplication (content matches the winner\u2019s)",
+    "draw.readfull": "Read full post",
+    "draw.collapse": "Collapse",
+    "zone.post.excerpt": "Citizen Post \u2014 excerpt, verbatim",
+    "zone.post.full": "Citizen Post \u2014 in full, verbatim",
+    "zone.post.read": "Read verbatim in full",
+    "zone.answer.excerpt": "Official Answer \u2014 excerpt",
+    "zone.answer.full": "Official Answer \u2014 in full",
+    "zone.answer.read": "Read answer in full",
+    "zone.summary": "Show summary",
+    "zone.post.screening": "Citizen Post \u2014 verbatim",
+    "zone.answer.screening": "Committee Answer \u2014 verbatim",
+    "zone.post.next": "Citizen Post \u2014 verbatim in full",
+    "zone.post.final": "Citizen Post \u2014 verbatim, final",
+    "next.selectedfor": "\u2014 {name} \u00b7 selected for next week\u2019s briefing",
+    "next.answercoming": "Answer coming {date}. The committee is still formulating it.",
+    "wonder.draft": "Draft answer with Wonder",
+    "wonder.visibility": "Demo only: drafts and editing are committee-only in the real product and shown here for evaluation. The public sees only approved answers.",
+    "wonder.simulated": "Demo only: in the real product the committee reviews, edits, and approves drafts; approval here is simulated and changes only what is displayed.",
+    "wonder.pending": "AI-drafted by Muse Wonder \u2014 pending committee review",
+    "wonder.edited": "AI-drafted by Muse Wonder, edited by committee \u2014 pending committee review",
+    "wonder.edit": "Edit draft",
+    "wonder.edit.aria": "Edit the committee draft answer",
+    "wonder.save": "Save edit",
+    "wonder.cancel": "Cancel",
+    "wonder.approve": "Approve draft",
+    "wonder.drafting": "Drafting with Muse Wonder ({model})...",
+    "wonder.unavailable": "Muse Wonder is unavailable (no session key, or the call failed) \u2014 the seeded answer above stands. Answers are never drafted by Spark.",
+    "wonder.approved": "Approved by committee (demo)",
+    /* prior + status */
+    "prior.aria": "Prior posts and answers archive",
+    "prior.lede": "The archive of past briefing selections: each item shows the original post, verbatim, plus the committee\u2019s answer. Check anytime \u2014 this is not part of the live show.",
+    "thread.selected": "Selected post",
+    "prior.updatelatest": "Most recent update",
+    "prior.status": "Status:",
+    "prior.tostatus": "Status updates for {ref} \u2192",
+    "status.aria": "Status updates follow-through record",
+    "status.lede": "The follow-through record: each item shows the dated progress updates plus the current status. Check anytime \u2014 this is not part of the live show.",
+    "status.dated": "Dated progress updates",
+    "status.toprior": "\u2190 Post and answer for {ref}",
+    /* watch */
+    "watch.aria": "Watch live broadcast",
+    "watch.lede": "Attend the weekly briefing broadcast. The Weekly Briefing tab holds the record of what was and will be discussed; this tab is the airing itself.",
+    "watch.demo": "<strong>Demo only:</strong> preview states on demand. The real product follows the clock.",
+    "watch.auto": "Auto (clock)",
+    "watch.upcoming": "Upcoming",
+    "watch.live": "Live",
+    "watch.replay": "Replay",
+    "watch.live.title": "Live \u2014 This Week\u2019s Briefing",
+    "watch.replay.title": "Replay \u2014 {cycle}",
+    "watch.live.badge": "LIVE",
+    "watch.replay.badge": "REPLAY",
+    "watch.slate.live.aria": "Live broadcast picture (demo simulation)",
+    "watch.slate.replay.aria": "Replay picture (demo simulation)",
+    "watch.slate.text": "Demo simulation of the weekly briefing broadcast. No real stream.",
+    "watch.slate.demo": "DEMO SIMULATION \u2014 no real stream",
+    "watch.unmute": "Tap to unmute \u2014 join with sound",
+    "watch.sound.live": "Live with sound.",
+    "watch.sound.blocked": "Sound blocked by the browser: picture is live, audio is muted.",
+    "watch.sound.unavailable": "Audio unavailable in this browser.",
+    "watch.sound.starting": "Starting\u2026",
+    "watch.onair": "The briefing is on air now",
+    "watch.next": "Next briefing: {label}, 1:00 PM ET",
+    "watch.noagenda": "Agenda to be announced after the next draw.",
+    "watch.noselect": "Selections for this briefing have not been drawn yet.",
+    "watch.draw": "Draw: {date}.",
+    "watch.onbill": "On the air bill ({cycle} selections):",
+    "watch.hint": "For a live stream or a pre-recorded screening, whichever is next. If you are on this tab when the briefing airs, the stream starts automatically.",
+    "watch.screening": "Screening",
+    "watch.nowreading": "Now reading ({i} of {n})",
+    "watch.noitems": "Agenda to be announced.",
+    "watch.library": "Pre-recorded screenings",
+    "watch.library.empty": "No past briefings yet.",
+    "watch.library.aired": "aired",
+    "watch.play.video": "Play video",
+    "watch.play.screening": "Play this screening",
+    "watch.processing": "Replay processing, available soon",
+    "watch.processing.full": "Replay processing, available soon \u2014 {cycle} aired {date}.",
+    "watch.stop": "Stop replay",
+    "watch.back": "\u2190 Briefing record",
+    "watch.simnote": "Demo simulation: the player stands in for the real briefing stream. Broadcast logic (schedule, autoplay, sound) is real.",
+    /* footer */
+    "footer.about": "About",
+    "footer.process": "The Process",
+    "footer.process.chain": "Live Feed \u2192 The Weekly Briefing \u2192 Prior Posts & Answers \u2192 Status Updates \u2192 Watch Live \u2192 Submit Post",
+    "footer.notices": "Notices",
+    "footer.demonotice": "<strong>Demo notice:</strong> sign-in is simulated; no real personal data is collected, requested, or stored. AI checks run locally until a Model API key is provided for the session. Committee answers shown are seeded sample responses.",
+    "footer.key": "Model API key",
+    "footer.key.hint": "(demo session only \u2014 kept in sessionStorage, cleared when the tab closes; never committed)",
+    "footer.key.ph": "Paste key for this session",
+    "footer.key.save": "Save key",
+    "footer.key.clear": "Clear",
+    "preview.close": "Back to editing",
+  };
+  var PS_NONE = { LANG_KEY: "podium.v1.lang",
+    t: function (id) { return EN_CHROME[id] || id; },
+    tf: function (id, map) { var s = EN_CHROME[id] || id; if (map) Object.keys(map).forEach(function (k) { s = s.split("{" + k + "}").join(String(map[k])); }); return s; },
+    tes: function (s) { return s; }, topicEs: function (s) { return s; }, statusEs: function (s) { return s; },
+    get: function () { return "en"; }, set: function () { /* English only */ }, sync: function () { return "en"; } };
+  function PS() { return (typeof PodiumStrings !== "undefined") ? PodiumStrings : PS_NONE; }
+  function T(id) { return PS().t(id); }
+  function Tf(id, map) { return PS().tf(id, map); }
+  function Tes(s) { return PS().tes(s); }
+  function Ttopic(s) { return PS().topicEs(s); }
+  function Tstatus(s) { return PS().statusEs(s); }
+  function uiLang() { return PS().get(); }
+  /* Display dates: store values pass through untouched; only the computed
+     "just now" label translates. */
+  function dateShown(p) {
+    var d = PodiumStore.displayDateFor(p, etNow());
+    return d === "just now" ? T("date.now") : d;
+  }
+  /* Read-aloud timer: local deterministic format, translated by fixed
+     replacement in es mode; en passes through byte-identical. */
+  function timerShown(text) {
+    var s = PodiumAI.formatTimer(text);
+    if (uiLang() !== "es") return s;
+    return s.replace("read-aloud time", "tiempo de lectura").replace(" of ", " de ");
+  }
+  /* Lowercase inline pipeline stage for meta lines. */
+  function inlineStage(shown) {
+    if (shown === "committee") return T("stage.inline.committee");
+    if (shown === "selected") return T("stage.inline.selected");
+    return T("stage.inline.briefed");
+  }
+  /* Inline stage for the Already-voiced line, where English shows the bare
+     pipeline word ("top-voted, committee"). */
+  function pipeStage(shown) {
+    if (uiLang() !== "es") return shown;
+    return T("stage.inline." + shown);
   }
 
   /* ---------- tabs ---------- */
@@ -92,15 +500,15 @@
   function renderCitizen() {
     var chip = $("citizenChip");
     if (!state.currentUserId) {
-      chip.textContent = "Not signed in";
-      $("switchCitizenBtn").textContent = "Sign in";
+      chip.textContent = T("citizen.signedout");
+      $("switchCitizenBtn").textContent = T("citizen.signin");
       $("citizenStateWrap").hidden = true;
     } else {
       var me = currentUser();
-      chip.innerHTML = "Signed in as <strong>" + esc(me.name) + "</strong>" +
+      chip.innerHTML = esc(T("citizen.signedin")) + " <strong>" + esc(me.name) + "</strong>" +
         (me.state ? " \u00b7 " + esc(me.state) : "") +
-        ' <span class="verified" title="Simulated verification for demo">\u2713 Verified citizen (demo)</span>';
-      $("switchCitizenBtn").textContent = "Switch citizen";
+        ' <span class="verified" title="' + esc(T("citizen.verified.title")) + '">' + esc(T("citizen.verified.chip")) + "</span>";
+      $("switchCitizenBtn").textContent = T("citizen.switch");
       $("citizenStateWrap").hidden = false;
       $("citizenStateSel").value = me.state || "";
     }
@@ -127,10 +535,10 @@
   function openCitizens(reason) {
     var pr = $("citizenPrompt");
     if (reason === "vote") {
-      pr.textContent = "Sign in to vote \u2014 pick a demo citizen. No sign-in, no vote.";
+      pr.textContent = T("citizens.vote");
       pr.hidden = false;
     } else if (reason === "post") {
-      pr.textContent = "Sign in to post \u2014 pick a demo citizen.";
+      pr.textContent = T("citizens.post");
       pr.hidden = false;
     } else {
       pr.hidden = true;
@@ -141,7 +549,7 @@
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
-      b.textContent = c.name + (c.state ? " \u00b7 " + c.state : "") + (c.id === state.currentUserId ? " (current)" : "") + "  \u2713 Verified (demo)";
+      b.textContent = c.name + (c.state ? " \u00b7 " + c.state : "") + (c.id === state.currentUserId ? T("citizen.current") : "") + "  " + T("citizen.verified");
       b.addEventListener("click", function () {
         state.currentUserId = c.id;
         PodiumStore.save(state);
@@ -231,12 +639,12 @@
     sel.innerHTML = "";
     if (withAll) {
       var o = document.createElement("option");
-      o.value = ""; o.textContent = "All topics";
+      o.value = ""; o.textContent = T("feed.alltopics");
       sel.appendChild(o);
     }
     state.topics.forEach(function (t) {
       var op = document.createElement("option");
-      op.value = t; op.textContent = t;
+      op.value = t; op.textContent = Ttopic(t);
       sel.appendChild(op);
     });
   }
@@ -250,7 +658,7 @@
     var sel = $("citizenStateSel");
     var o0 = document.createElement("option");
     o0.value = "";
-    o0.textContent = "State not set";
+    o0.textContent = T("citizen.state.unset");
     sel.appendChild(o0);
     US_STATES.forEach(function (nm) {
       var o = document.createElement("option");
@@ -382,13 +790,13 @@
       b.addEventListener("click", function () { setFeedTopic(topic); });
       box.appendChild(b);
     }
-    addBtn("All topics", "", total);
-    state.topics.forEach(function (t) { addBtn(t, t, counts[t] || 0); });
+    addBtn(T("feed.alltopics"), "", total);
+    state.topics.forEach(function (t) { addBtn(Ttopic(t), t, counts[t] || 0); });
   }
   function renderPager(total, totalPages) {
     var pager = $("feedPager");
     pager.hidden = totalPages <= 1;
-    $("pageInfo").textContent = "Page " + feedPage + " of " + totalPages;
+    $("pageInfo").textContent = T("feed.page") + " " + feedPage + " " + T("feed.page.of") + " " + totalPages;
     $("prevPage").disabled = feedPage <= 1;
     $("nextPage").disabled = feedPage >= totalPages;
   }
@@ -400,12 +808,12 @@
     var open = p.cycleId === currentCycle();
     document.querySelectorAll('.vote-btn[data-post="' + pid + '"]').forEach(function (b) {
       b.setAttribute("aria-pressed", voted ? "true" : "false");
-      b.textContent = voted ? "\u25b2 Upvoted" : "\u25b3 Upvote";
+      b.textContent = voted ? T("vote.upvoted") : T("vote.up");
       var li = b.closest("li");
       var count = li ? li.querySelector(".vote-count") : null;
       if (count) {
-        count.textContent = votesLabel(p.votes) + (voted ? " \u00b7 Your vote" : "") +
-          (open ? "" : " \u00b7 voting closed");
+        count.textContent = votesLabel(p.votes) + (voted ? T("vote.yours") : "") +
+          (open ? "" : T("vote.closed"));
       }
     });
   }
@@ -414,15 +822,77 @@
     var b = PodiumStore.briefingItemFor(state, postId);
     if (!b) return "";
     var shown = displayPipeline(PodiumStore.cycleById(state, b.cycleId), b.pipeline);
-    var stage = shown === "committee" ? "in committee" : shown;
-    if (b.selection === "top") return '<span class="post-status top">Top-voted \u00b7 ' + esc(stage) + "</span>";
-    return '<span class="post-status random">Random pick \u00b7 ' + esc(stage) + "</span>";
+    var stage = inlineStage(shown);
+    if (b.selection === "top") return '<span class="post-status top">' + esc(T("badge.top")) + " \u00b7 " + esc(stage) + "</span>";
+    return '<span class="post-status random">' + esc(T("badge.random")) + " \u00b7 " + esc(stage) + "</span>";
   }
 
   var linkedPostId = null;
   var linkedSuffix = null;
   var lastCodeJump = null;
   var linkMissing = false;
+
+  /* On-demand post translation (multilingual slice, step 4): a reader aid,
+     never the record. The control appears on full-post views (thread view,
+     briefing cards, Prior cards) only when the post's frozen lang differs
+     from the current UI language. The original is never altered, hidden,
+     or replaced; the translation renders in a separate labeled box below
+     it. Translations cache in memory for the session (post id + target
+     language); a reload clears them. One attempt per click; failures show
+     the unavailable note and disable the button (no retry loop). */
+  var translateCache = new Map();
+  function needsTranslation(p) {
+    var pl = p && p.lang;
+    return !!pl && pl !== "und" && pl !== uiLang();
+  }
+  function translateBox(text) {
+    var box = document.createElement("div");
+    box.className = "zone zone-post";
+    box.innerHTML = '<span class="zone-label">' + esc(T("translate.label")) + "</span>" +
+      "<blockquote>" + esc(text) + "</blockquote>";
+    return box;
+  }
+  function mountTranslateSlot(slot, post) {
+    if (slot.getAttribute("data-mounted")) return;
+    slot.setAttribute("data-mounted", "true");
+    if (!needsTranslation(post)) { if (slot.parentNode) slot.parentNode.removeChild(slot); return; }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-small";
+    btn.textContent = T("translate.button");
+    btn.addEventListener("click", function () {
+      var target = uiLang();
+      var key = post.id + "|" + target;
+      if (translateCache.has(key)) {
+        if (!slot.querySelector(".zone")) slot.appendChild(translateBox(translateCache.get(key)));
+        return;
+      }
+      btn.disabled = true;
+      PodiumAI.translatePost(post.body, post.lang, target).then(function (text) {
+        if (!text) {
+          var note = document.createElement("p");
+          note.className = "hint";
+          note.textContent = T("translate.unavailable");
+          slot.appendChild(note);
+          return; /* button stays disabled: no retry loop */
+        }
+        translateCache.set(key, text);
+        slot.appendChild(translateBox(text));
+        btn.disabled = false;
+      });
+    });
+    slot.appendChild(btn);
+  }
+  function translateSlotHtml(p) {
+    return '<div class="translate-slot" data-post="' + esc(p.id) + '"></div>';
+  }
+  function mountTranslateSlots(root) {
+    Array.prototype.forEach.call(root.querySelectorAll(".translate-slot"), function (slot) {
+      var p = PodiumStore.postById(state, slot.getAttribute("data-post"));
+      if (p) mountTranslateSlot(slot, p);
+      else if (slot.parentNode) slot.parentNode.removeChild(slot);
+    });
+  }
 
   function postLi(p, linked) {
     var li = document.createElement("li");
@@ -433,21 +903,21 @@
     var voted = state.currentUserId ? PodiumStore.hasVoted(state, state.currentUserId, p.id) : false;
     var cycle = PodiumStore.cycleById(state, p.cycleId);
     var html = '<div class="post-meta"><span class="post-author">' + esc(author.name) +
-      "</span>" + stateSuffix(p) + '<span title="Simulated verification for demo">\u2713 verified (demo)</span>' +
-      '<span class="post-topic">' + esc(p.topic) + "</span>" +
+      "</span>" + stateSuffix(p) + langSuffix(p) + '<span title="' + esc(T("citizen.verified.title")) + '">' + esc(T("citizen.verified.small")) + "</span>" +
+      '<span class="post-topic">' + esc(Ttopic(p.topic)) + "</span>" +
       '<span class="ref-code">' + esc(p.ref || "") + "</span>" +
-      "<span>" + esc(PodiumStore.displayDateFor(p, etNow())) + " \u00b7 " + esc(cycleLabel(cycle)) + "</span>" +
+      "<span>" + esc(dateShown(p)) + " \u00b7 " + esc(cycleLabel(cycle)) + "</span>" +
       statusChip(p.id) + "</div>" +
       '<p class="post-body">' + esc(p.body) + "</p>" +
       '<div class="post-actions">';
     if (open) {
       html += '<button type="button" class="vote-btn" data-post="' + esc(p.id) + '" aria-pressed="' + (voted ? "true" : "false") + '">' +
-        (voted ? "\u25b2 Upvoted" : "\u25b3 Upvote") + "</button>";
+        (voted ? T("vote.upvoted") : T("vote.up")) + "</button>";
     }
-    html += '<button type="button" class="share-btn" data-share="' + esc(p.id) + '">Share</button>';
+    html += '<button type="button" class="share-btn" data-share="' + esc(p.id) + '">' + esc(T("share.button")) + "</button>";
     html += '<span class="vote-count">' + votesLabel(p.votes) +
-      (voted ? " \u00b7 Your vote" : "") +
-      (open ? "" : " \u00b7 voting closed") + "</span></div>";
+      (voted ? T("vote.yours") : "") +
+      (open ? "" : T("vote.closed")) + "</span></div>";
     li.innerHTML = html;
     return li;
   }
@@ -494,13 +964,22 @@
   /* Thread view: the post plus its answer and updates, each with its code.
      Used for deep links and code search. highlight is null | "A" | "U<n>". */
   function renderThread(list, post, highlight) {
-    list.appendChild(postLi(post, true));
+    var pli = postLi(post, true);
+    list.appendChild(pli);
+    var pbody = pli.querySelector(".post-body");
+    if (pbody) {
+      var tslot = document.createElement("div");
+      tslot.className = "translate-slot";
+      tslot.setAttribute("data-post", post.id);
+      pbody.parentNode.insertBefore(tslot, pbody.nextSibling);
+    }
+    mountTranslateSlots(list);
     var b = PodiumStore.briefingItemFor(state, post.id);
     if (!b) return;
     var ans = document.createElement("li");
     ans.className = "card zone-answer" + (highlight === "A" ? " thread-hl" : "");
     if (highlight === "A") ans.id = "threadTarget";
-    ans.innerHTML = '<span class="zone-label">Official Answer</span>' +
+    ans.innerHTML = '<span class="zone-label">' + esc(T("thread.answer")) + "</span>" +
       '<p><span class="ref-code">' + esc(answerCode(post)) + "</span></p>" +
       "<p>" + esc(displayAnswer(b.answer)) + "</p>";
     list.appendChild(ans);
@@ -509,7 +988,7 @@
       var li = document.createElement("li");
       li.className = "card zone-answer" + (hl ? " thread-hl" : "");
       if (hl) li.id = "threadTarget";
-      li.innerHTML = '<span class="zone-label">Update U' + (i + 1) + "</span>" +
+      li.innerHTML = '<span class="zone-label">' + esc(T("thread.update")) + " U" + (i + 1) + "</span>" +
         '<p><span class="ref-code">' + esc(updateCode(post, i)) + "</span> <strong>" + esc(u.date) + "</strong></p>" +
         "<p>" + esc(u.text) + "</p>";
       list.appendChild(li);
@@ -528,9 +1007,7 @@
       if (lp) {
         var noteEl = $("feedNote");
         var lpOpen = (lp.cycleId === currentCycle());
-        noteEl.textContent = lpOpen
-          ? "You opened a shared post. Sign in to upvote it. "
-          : "You opened a shared post from a past week. Voting is closed on past weeks\u2019 posts. ";
+        noteEl.textContent = lpOpen ? T("feed.opened.open") : T("feed.opened.past");
         if (!lpOpen && PodiumStore.briefingItemFor(state, lp.id)) {
           noteEl.appendChild(fullRecordButton(lp.id));
           noteEl.appendChild(document.createTextNode(" "));
@@ -538,7 +1015,7 @@
         var back = document.createElement("button");
         back.type = "button";
         back.className = "btn btn-small";
-        back.textContent = "Show full feed";
+        back.textContent = T("feed.showfull");
         back.addEventListener("click", clearDeepLink);
         noteEl.appendChild(back);
         renderThread(list, lp, linkedSuffix);
@@ -551,16 +1028,16 @@
     }
     if (linkMissing) {
       var noteEl = $("feedNote");
-      noteEl.textContent = "This post is no longer available. Posts that are not selected for a weekly briefing are removed when their cycle closes. ";
+      noteEl.textContent = T("feed.gone");
       var back = document.createElement("button");
       back.type = "button";
       back.className = "btn btn-small";
-      back.textContent = "Show full feed";
+      back.textContent = T("feed.showfull");
       back.addEventListener("click", clearDeepLink);
       noteEl.appendChild(back);
       var liGone = document.createElement("li");
       liGone.className = "post";
-      liGone.textContent = "This post is no longer available. Posts that are not selected for a weekly briefing are removed when their cycle closes.";
+      liGone.textContent = T("feed.gone.li");
       list.appendChild(liGone);
       return;
     }
@@ -575,16 +1052,16 @@
       if (suffix === "U0") suffix = null; /* updates start at U1 */
       var found = PodiumStore.postByRef(state, base);
       if (!found) {
-        $("feedNote").textContent = "No item with code " + raw.toUpperCase() + ".";
+        $("feedNote").textContent = Tf("feed.nocode", { code: raw.toUpperCase() });
         var liNone = document.createElement("li");
         liNone.className = "post";
-        liNone.textContent = "No post, answer, or update carries that code.";
+        liNone.textContent = T("feed.nocode.li");
         list.appendChild(liNone);
         return;
       }
       $("feedNote").textContent = suffix
-        ? ("Code " + base + "-" + suffix + ": jumping to that item in the thread.")
-        : ("Code " + base + ": post plus its answer and updates.");
+        ? Tf("feed.code.thread", { code: base + "-" + suffix })
+        : Tf("feed.code.record", { code: base });
       renderThread(list, found, suffix);
       attachCardButtons(list);
       if (base + (suffix || "") !== lastCodeJump) {
@@ -600,17 +1077,17 @@
     if (feedPage < 1) feedPage = 1;
     var note = "";
     if (feedSort === "top") {
-      note = "Highest-voted first. This week\u2019s leader becomes the top-voted briefing pick.";
+      note = T("feed.note.top");
     } else if (feedSort === "needs") {
-      note = "Least-voted first, so unseen posts surface. These are this week\u2019s posts \u2014 voting is open on all of them.";
+      note = T("feed.note.needs");
     } else if (feedSort === "discover") {
-      note = "Shuffled for discovery \u2014 re-pick Discover for a fresh shuffle. These are this week\u2019s posts \u2014 voting is open on all of them.";
+      note = T("feed.note.discover");
     } else if (raw) {
-      note = ids.length + " result(s).";
+      note = ids.length === 1 ? T("feed.note.results.one") : Tf("feed.note.results.many", { n: ids.length });
     } else {
-      note = "Newest first. These are this week\u2019s posts \u2014 voting is open on all of them.";
+      note = T("feed.note.recent");
     }
-    if (feedTopic) note += " Filtered to topic \u201c" + feedTopic + "\u201d (" + ids.length + ").";
+    if (feedTopic) note += Tf("feed.note.filtered", { topic: Ttopic(feedTopic), n: ids.length });
     $("feedNote").textContent = note;
     syncFeedControls();
     renderTopicList();
@@ -618,7 +1095,7 @@
     if (!ids.length) {
       var li0 = document.createElement("li");
       li0.className = "post";
-      li0.textContent = "No posts here yet.";
+      li0.textContent = T("feed.empty");
       list.appendChild(li0);
       return;
     }
@@ -638,11 +1115,11 @@
     var box = $("onePostNotice");
     if (!state.currentUserId) {
       box.hidden = false;
-      box.innerHTML = "<strong>Sign in to post.</strong> Pick a demo citizen to address the nation. ";
+      box.innerHTML = T("notice.signin");
       var sb = document.createElement("button");
       sb.type = "button";
       sb.className = "btn btn-small";
-      sb.textContent = "Sign in";
+      sb.textContent = T("citizen.signin");
       sb.addEventListener("click", function () { openCitizens("post"); });
       box.appendChild(sb);
       $("composerForm").style.display = "none";
@@ -651,8 +1128,8 @@
     var existing = PodiumStore.userPostInCycle(state, state.currentUserId, currentCycle());
     if (existing) {
       box.hidden = false;
-      box.innerHTML = "<strong>One post per citizen per weekly cycle.</strong> You already published this week (" +
-        esc(excerpt(existing.body, 90)) + "). You can still vote on this week\u2019s posts.";
+      box.innerHTML = T("notice.published.a") +
+        esc(excerpt(existing.body, 90)) + T("notice.published.b");
       $("composerForm").style.display = "none";
     } else {
       box.hidden = true;
@@ -671,7 +1148,7 @@
 
     gateState.overLimit = words > PodiumAI.WORD_LIMIT;
     var timer = $("readTimer");
-    timer.textContent = PodiumAI.formatTimer(text);
+    timer.textContent = timerShown(text);
     timer.classList.toggle("over", gateState.overLimit);
 
     var res = PodiumAI.checkText(text);
@@ -693,7 +1170,21 @@
       }
       if (clarity.unclear && liveClarityCache.proposal) proposal = verifyProposal(liveClarityCache.proposal, text, clarity);
     }
-    if (!proposal && localClarity.unclear && !res.hard.length) {
+    /* Live-clear override for non-English posts: the local clarity check
+       uses English-based topic/ask heuristics and systematically flags
+       clean non-English drafts unclear. When the live gate has detected a
+       non-English language for this exact text and live clarity judges it
+       clear, the local unclear must not hold the post on its own.
+       English, unknown ("und"), missing/stale language, a live unclear
+       verdict, or no live verdict at all keep the current behavior. */
+    var gateLang = (liveGateCache && liveGateCache.text === text && liveGateCache.lang) ? liveGateCache.lang : "und";
+    var liveClearOverride = gateLang !== "und" && gateLang !== "en" && gateLang.indexOf("en-") !== 0 &&
+      liveClarityCache && liveClarityCache.text === text && liveClarityCache.unclear === false;
+    if (liveClearOverride) {
+      clarity = { unclear: false, hasSentence: localClarity.hasSentence, topic: localClarity.topic, ask: localClarity.ask, words: localClarity.words };
+      proposal = null;
+    }
+    if (!proposal && localClarity.unclear && !res.hard.length && !liveClearOverride) {
       proposal = verifyProposal(PodiumAI.tidyDraft(text), text, localClarity);
     }
     gateState.clarityHold = clarity.unclear;
@@ -713,31 +1204,29 @@
     if (gateState.overLimit) {
       var d0 = document.createElement("div");
       d0.className = "gate-error";
-      d0.textContent = "Too long for the national reading: " + words + " of 630 words maximum. Shorten your post to fit the 4:30 read-aloud slot.";
+      d0.textContent = Tf("gate.overlimit", { n: words });
       gm.appendChild(d0);
     }
     if (res.hard.length) {
       var d1 = document.createElement("div");
       d1.className = "gate-error";
-      d1.innerHTML = "<strong>Cannot publish:</strong> this draft contains " + esc(res.hard.join(", ")) +
-        ", which counts as profanity, a slur, or a personal attack. Such posts are never published. Remove it and keep your address professional.";
+      d1.innerHTML = Tf("gate.hard", { spans: esc(res.hard.join(", ")) });
       gm.appendChild(d1);
     }
     if (!res.hard.length && res.soft.length) {
       var d2 = document.createElement("div");
       d2.className = "gate-hold";
-      d2.innerHTML = "<strong>Held for your correction:</strong> " + res.soft.length +
-        " wording issue(s) would embarrass you before a national audience. Accept a suggestion or retype the word yourself \u2014 nothing changes without your action.";
+      d2.innerHTML = Tf("gate.soft", { n: res.soft.length });
       gm.appendChild(d2);
       res.soft.forEach(function (f) {
         var chip = document.createElement("span");
         chip.className = "flag-chip";
-        var label = "\u201c" + f.word + "\u201d \u2014 " + f.reason + " ";
+        var label = "\u201c" + f.word + "\u201d \u2014 " + Tes(f.reason) + " ";
         chip.textContent = label;
         var b = document.createElement("button");
         b.type = "button";
-        b.textContent = f.suggestion ? ("Use \u201c" + f.suggestion + "\u201d") : "Remove it";
-        b.setAttribute("aria-label", "Replace " + f.word + (f.suggestion ? (" with " + f.suggestion) : " by removing it"));
+        b.textContent = f.suggestion ? Tf("chip.use", { sug: f.suggestion }) : T("chip.remove");
+        b.setAttribute("aria-label", f.suggestion ? Tf("chip.aria.replace", { w: f.word, s: f.suggestion }) : Tf("chip.aria.remove", { w: f.word }));
         b.addEventListener("click", function () {
           var re = new RegExp("\\b" + f.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", f.caseSensitive ? "g" : "gi");
           composerText.value = composerText.value.replace(re, f.suggestion).replace(/ {2,}/g, " ");
@@ -751,10 +1240,10 @@
     if (!res.hard.length && res.punctFix) {
       var pf = document.createElement("div");
       pf.className = "gate-hold";
-      pf.textContent = "Punctuation and spacing need a touch-up \u2014 one click fixes double spaces, spaces before punctuation, and the final period. ";
+      pf.textContent = T("gate.punct");
       var fixBtn = document.createElement("button");
       fixBtn.type = "button";
-      fixBtn.textContent = "Fix punctuation and spacing";
+      fixBtn.textContent = T("gate.punct.fix");
       fixBtn.addEventListener("click", function () {
         composerText.value = res.punctFix;
         renderComposerGate();
@@ -765,14 +1254,14 @@
     if (!res.hard.length && clarity.unclear) {
       var ch = document.createElement("div");
       ch.className = "gate-hold";
-      ch.innerHTML = "<strong>Held so you can be heard clearly:</strong> this draft is hard to understand as written, so it cannot publish yet. This is not a refusal \u2014 your post is not declined. Use the help below, or fix the draft yourself; you can return and publish at any time.";
+      ch.innerHTML = T("gate.unclear");
       gm.appendChild(ch);
     }
     renderClarityPanel(text, res, clarity, proposal);
     if (!res.hard.length && !res.soft.length && !gateState.overLimit && !res.punctFix && !clarity.unclear) {
       var d3 = document.createElement("div");
       d3.className = "gate-ok";
-      d3.textContent = "Wording check passed. Your topic, position, and meaning are yours alone \u2014 the check never touches them.";
+      d3.textContent = T("gate.ok");
       gm.appendChild(d3);
     }
     var blocked = res.hard.length > 0 || res.soft.length > 0 || res.punctFix || clarity.unclear || gateState.overLimit;
@@ -803,7 +1292,7 @@
     (b || []).forEach(function (f) {
       if (f && f.word && !seen[String(f.word).toLowerCase()]) {
         seen[String(f.word).toLowerCase()] = true;
-        out.push({ word: f.word, suggestion: f.suggestion, reason: f.reason || "Live wording check.", caseSensitive: f.caseSensitive });
+        out.push({ word: f.word, suggestion: f.suggestion, reason: f.reason || T("reason.live"), caseSensitive: f.caseSensitive });
       }
     });
     out.forEach(function (f) {
@@ -824,7 +1313,7 @@
       liveGateTimer = null;
       PodiumAI.checkTextLive(snapshot).then(function (live) {
         if (!live) return; /* fallback: local stands, cache untouched */
-        liveGateCache = { text: snapshot, hard: live.hard || [], soft: live.soft || [] };
+        liveGateCache = { text: snapshot, hard: live.hard || [], soft: live.soft || [], lang: live.lang || "und" };
         if (composerText.value !== snapshot) return; /* stale */
         renderComposerGate();
       });
@@ -937,16 +1426,16 @@
   function renderOffer(panel, text, proposal, built) {
     var wrap = document.createElement("div");
     wrap.className = "gate-hold";
-    var title = built ? "Built only from your answers:" : "Proposed version \u2014 same meaning, clearer words:";
+    var title = built ? T("offer.built") : T("offer.proposed");
     var t = document.createElement("div");
-    t.innerHTML = "<strong>" + esc(title) + "</strong> Nothing publishes until you click \u201cUse this version.\u201d";
+    t.innerHTML = "<strong>" + esc(title) + "</strong>" + esc(T("offer.until"));
     wrap.appendChild(t);
     var cols = document.createElement("div");
     cols.style.display = "flex";
     cols.style.flexWrap = "wrap";
     cols.style.gap = "8px";
     cols.style.margin = "8px 0";
-    [["Your words:", String(text).trim()], ["Proposed version:", proposal]].forEach(function (pair) {
+    [[T("offer.yours"), String(text).trim()], [T("offer.version"), proposal]].forEach(function (pair) {
       var cell = document.createElement("div");
       cell.style.flex = "1 1 220px";
       var lab = document.createElement("div");
@@ -963,14 +1452,14 @@
     var useBtn = document.createElement("button");
     useBtn.type = "button";
     useBtn.className = "btn btn-small";
-    useBtn.textContent = "Use this version";
+    useBtn.textContent = T("offer.use");
     useBtn.addEventListener("click", function () { useProposal(proposal); });
     row.appendChild(useBtn);
     row.appendChild(document.createTextNode(" "));
     var keepBtn = document.createElement("button");
     keepBtn.type = "button";
     keepBtn.className = "btn btn-small";
-    keepBtn.textContent = "Keep my words";
+    keepBtn.textContent = T("offer.keep");
     keepBtn.addEventListener("click", function () {
       clarityDismissedFor = composerText.value;
       builtOffer = null;
@@ -985,13 +1474,13 @@
       var hearBtn = document.createElement("button");
       hearBtn.type = "button";
       hearBtn.className = "btn btn-small";
-      hearBtn.textContent = "Hear the proposed version";
+      hearBtn.textContent = T("offer.hear");
       hearBtn.addEventListener("click", function () { speak(proposal); });
       row.appendChild(hearBtn);
     } else {
       var nn = document.createElement("div");
       nn.className = "hint";
-      nn.textContent = "Your browser cannot read aloud; please read the proposed version above before approving.";
+      nn.textContent = T("offer.novoice");
       wrap.appendChild(nn);
     }
     wrap.appendChild(row);
@@ -1018,7 +1507,7 @@
     PodiumAI.checkTextLive(p).then(function (live) {
       if (composerText.value !== p) return; /* author moved on */
       if (live && ((live.hard && live.hard.length) || (live.soft && live.soft.length))) {
-        liveGateCache = { text: p, hard: live.hard || [], soft: live.soft || [] };
+        liveGateCache = { text: p, hard: live.hard || [], soft: live.soft || [], lang: live.lang || "und" };
         renderComposerGate();
         return;
       }
@@ -1039,9 +1528,9 @@
     var wrap = document.createElement("div");
     wrap.className = "gate-hold";
     var t = document.createElement("div");
-    t.innerHTML = "<strong>Help us understand \u2014 answer in your own words:</strong> no rewrite is offered because no clear position could be found in the draft. Nothing is invented: a draft is built only from your answers, and only with your approval.";
+    t.innerHTML = "<strong>" + esc(T("prompts.title")) + "</strong>" + esc(T("prompts.nooffer"));
     wrap.appendChild(t);
-    [["what", "What happened?"], ["want", "What do you want fixed or changed?"], ["who", "Who should fix it?"]].forEach(function (pair) {
+    [["what", T("prompts.what")], ["want", T("prompts.want")], ["who", T("prompts.who")]].forEach(function (pair) {
       var fd = document.createElement("div");
       fd.className = "field";
       var lab = document.createElement("label");
@@ -1062,7 +1551,7 @@
     var buildBtn = document.createElement("button");
     buildBtn.type = "button";
     buildBtn.className = "btn btn-small";
-    buildBtn.textContent = "Build my draft from these answers";
+    buildBtn.textContent = T("prompts.build");
     buildBtn.addEventListener("click", function () { buildFromAnswers(panel, msg); });
     wrap.appendChild(buildBtn);
     panel.appendChild(wrap);
@@ -1081,10 +1570,10 @@
       if (!/[.!?]$/.test(a)) a += ".";
       sents.push(a);
     });
-    if (!sents.length) { msg.textContent = "Answer at least one question above, in your own words."; return; }
+    if (!sents.length) { msg.textContent = T("prompts.needone"); return; }
     var built = sents.join(" ");
     if (PodiumAI.checkText(built).hard.length) {
-      msg.textContent = "These answers cannot be used as written: they contain wording that can never publish. Change the flagged words and try again.";
+      msg.textContent = T("prompts.badwords");
       return;
     }
     var bc = PodiumAI.clarityOf(built);
@@ -1107,7 +1596,8 @@
     if (!canSpeak()) {
       var note = document.createElement("span");
       note.className = "hint";
-      note.textContent = "Your browser cannot read text aloud.";
+      note.id = "hearNoVoice";
+      note.textContent = T("hear.novoice");
       hb.parentNode.replaceChild(note, hb);
       return;
     }
@@ -1120,8 +1610,8 @@
 
   function pipelineLabel(postId) {
     var b = PodiumStore.briefingItemFor(state, postId);
-    if (!b) return "not yet selected";
-    return (b.selection === "top" ? "top-voted" : "random pick") + ", " + displayPipeline(PodiumStore.cycleById(state, b.cycleId), b.pipeline);
+    if (!b) return T("pipe.none");
+    return (b.selection === "top" ? T("pipe.top") : T("pipe.random")) + ", " + pipeStage(displayPipeline(PodiumStore.cycleById(state, b.cycleId), b.pipeline));
   }
 
   var voicedTimer = null;
@@ -1181,12 +1671,12 @@
     var head = document.createElement("div");
     head.className = "voiced-head";
     var h = document.createElement("h3");
-    h.textContent = "Already voiced";
+    h.textContent = T("voiced.title");
     var x = document.createElement("button");
     x.type = "button";
     x.className = "voiced-close";
-    x.textContent = "\u00d7 Dismiss";
-    x.setAttribute("aria-label", "Dismiss this suggestion");
+    x.textContent = T("voiced.dismiss");
+    x.setAttribute("aria-label", T("voiced.dismiss.aria"));
     x.addEventListener("click", function () {
       voicedDismissed = true;
       voicedForText = composerText.value;
@@ -1203,7 +1693,7 @@
     panel.appendChild(mp);
     var rem = document.createElement("p");
     rem.className = "reminder";
-    rem.textContent = "A conflicting post may divide votes and reduce the likelihood of your concern being heard.";
+    rem.textContent = T("voiced.reminder");
     panel.appendChild(rem);
     var exits = document.createElement("div");
     exits.className = "exits";
@@ -1211,24 +1701,24 @@
     insteadBtn.type = "button";
     insteadBtn.className = "btn btn-small";
     insteadBtn.textContent = (state.currentUserId && PodiumStore.hasVoted(state, state.currentUserId, match.id))
-      ? "Upvoted \u2713" : "Vote for theirs instead";
+      ? T("vote.upvoted.check") : T("voiced.instead");
     insteadBtn.addEventListener("click", function () {
       if (!state.currentUserId) { openCitizens("vote"); return; }
       if (match.cycleId !== currentCycle()) {
-        insteadBtn.textContent = "Voting closed (past week)";
+        insteadBtn.textContent = T("vote.closedweek");
         insteadBtn.disabled = true;
         return;
       }
       if (!PodiumStore.hasVoted(state, state.currentUserId, match.id)) {
         PodiumStore.castVote(state, state.currentUserId, match.id);
       }
-      insteadBtn.textContent = "Upvoted \u2713";
+      insteadBtn.textContent = T("vote.upvoted.check");
       renderFeed();
     });
     var bothBtn = document.createElement("button");
     bothBtn.type = "button";
     bothBtn.className = "btn btn-small";
-    bothBtn.textContent = "Post mine and vote theirs too";
+    bothBtn.textContent = T("voiced.both");
     bothBtn.addEventListener("click", function () {
       if (!state.currentUserId) { openCitizens("vote"); return; }
       if (match.cycleId === currentCycle() && !PodiumStore.hasVoted(state, state.currentUserId, match.id)) {
@@ -1240,7 +1730,7 @@
     var asisBtn = document.createElement("button");
     asisBtn.type = "button";
     asisBtn.className = "btn btn-small";
-    asisBtn.textContent = "Post mine as-is";
+    asisBtn.textContent = T("voiced.asis");
     asisBtn.addEventListener("click", function () { publishBtn.focus(); });
     exits.appendChild(insteadBtn);
     exits.appendChild(bothBtn);
@@ -1256,20 +1746,20 @@
     var d = document.createElement("div");
     d.className = "gate-error";
     var msg = document.createElement("p");
-    msg.textContent = "This post already exists in this cycle \u2014 upvote it to add your voice.";
+    msg.textContent = T("copy.exists");
     d.appendChild(msg);
     var quote = document.createElement("p");
-    quote.innerHTML = "<strong>Existing post:</strong> \u201c" + esc(excerpt(dup.body, 200)) + "\u201d";
+    quote.innerHTML = Tf("copy.existing", { quote: esc(excerpt(dup.body, 200)) });
     d.appendChild(quote);
     var vb = document.createElement("button");
     vb.type = "button";
     vb.className = "btn btn-small";
-    vb.textContent = PodiumStore.hasVoted(state, state.currentUserId, dup.id) ? "Upvoted \u2713" : "Upvote it instead";
+    vb.textContent = PodiumStore.hasVoted(state, state.currentUserId, dup.id) ? T("vote.upvoted.check") : T("vote.upvoteit");
     vb.addEventListener("click", function () {
       if (!PodiumStore.hasVoted(state, state.currentUserId, dup.id)) {
         PodiumStore.castVote(state, state.currentUserId, dup.id);
       }
-      vb.textContent = "Upvoted \u2713";
+      vb.textContent = T("vote.upvoted.check");
       renderFeed();
     });
     d.appendChild(vb);
@@ -1286,7 +1776,11 @@
     if (gateState.hard.length || gateState.soft.length || gateState.punctFix || gateState.clarityHold || gateState.overLimit) return;
     var dup = PodiumStore.findExactInCycle(state, currentCycle(), text);
     if (dup) { showCopyRedirect(dup); return; }
-    var post = PodiumStore.publishPost(state, state.currentUserId, currentCycle(), $("composerTopic").value, text, etNow());
+    /* The frozen language tag comes from the live gate's language verdict
+       for this exact text; without one (offline, stub, stale) it is "und"
+       and no label renders. Never edited after publishing. */
+    var detectedLang = (liveGateCache && liveGateCache.text === text && liveGateCache.lang) ? liveGateCache.lang : "und";
+    var post = PodiumStore.publishPost(state, state.currentUserId, currentCycle(), $("composerTopic").value, text, etNow(), detectedLang);
     if (!post) { updateOnePostNotice(); return; }
     composerText.value = "";
     clearDraft();
@@ -1312,7 +1806,7 @@
     saveFeedState();
     showView("feed");
     renderFeed();
-    $("feedNote").textContent = "Published \u2014 final. Your post cannot be edited or redacted. It now stands for this week\u2019s vote.";
+    $("feedNote").textContent = T("publish.done");
   }
   $("composerForm").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -1323,11 +1817,11 @@
   function showTopicSuggestion(sug) {
     var pt = $("previewTopic");
     pt.hidden = false;
-    pt.innerHTML = "AI topic suggestion, shown once at review \u2014 yours to accept or ignore: <strong>" + esc(sug) + "</strong> ";
+    pt.innerHTML = T("preview.suggest.a") + esc(Ttopic(sug)) + T("preview.suggest.b");
     var useBtn = document.createElement("button");
     useBtn.type = "button";
     useBtn.className = "btn btn-small";
-    useBtn.textContent = "Use this topic";
+    useBtn.textContent = T("preview.usetopic");
     useBtn.addEventListener("click", function () {
       $("composerTopic").value = sug;
       pt.hidden = true;
@@ -1339,8 +1833,8 @@
     if (!state.currentUserId) { openCitizens("post"); return; }
     var text = composerText.value.trim();
     if (!text) { composerText.focus(); return; }
-    $("previewMeta").textContent = currentUser().name + " \u00b7 " + $("composerTopic").value + " \u00b7 " +
-      PodiumAI.countWords(text) + " words \u00b7 " + PodiumAI.formatTimer(text) + " read aloud";
+    $("previewMeta").textContent = currentUser().name + " \u00b7 " + Ttopic($("composerTopic").value) + " \u00b7 " +
+      PodiumAI.countWords(text) + " " + T("preview.words") + " \u00b7 " + timerShown(text) + " " + T("preview.readaloud");
     $("previewBody").textContent = text;
     var pt = $("previewTopic");
     var sug = PodiumAI.suggestTopic(text);
@@ -1389,21 +1883,21 @@
     return pipeline;
   }
   function stageHtml(pipeline) {
-    var steps = [["selected", "Selected"], ["committee", "In Committee Review"], ["briefed", "Briefed"]];
+    var steps = [["selected", T("stage.selected")], ["committee", T("stage.committee")], ["briefed", T("stage.briefed")]];
     var order = { selected: 0, committee: 1, briefed: 2 };
     var cur = order[pipeline] !== undefined ? order[pipeline] : 0;
-    return '<div class="stage" role="img" aria-label="Pipeline stage: ' + steps[cur][1] + '">' + steps.map(function (s, i) {
+    return '<div class="stage" role="img" aria-label="' + esc(Tf("stage.aria", { stage: steps[cur][1] })) + '">' + steps.map(function (s, i) {
       return (i > 0 ? '<span class="stage-arrow" aria-hidden="true">\u2192</span>' : "") +
-        '<span class="stage-step' + (i <= cur ? " done" : "") + '">' + s[1] + "</span>";
+        '<span class="stage-step' + (i <= cur ? " done" : "") + '">' + esc(s[1]) + "</span>";
     }).join("") + "</div>";
   }
 
   function selectionBadge(cycle, item, p) {
     var poolLen = cycle.poolSize;
     if (item.selection === "top") {
-      return '<span class="badge-top">TOP-VOTED \u00b7 ' + p.votes + " votes</span>";
+      return '<span class="badge-top">' + esc(T("selbadge.top")) + " \u00b7 " + esc(votesLabel(p.votes)) + "</span>";
     }
-    return '<span class="badge-random">RANDOM DRAW \u00b7 position ' + cycle.position + " of " + poolLen + "</span>";
+    return '<span class="badge-random">' + esc(T("selbadge.random")) + " \u00b7 " + esc(T("selbadge.position")) + " " + cycle.position + " " + esc(T("selbadge.of")) + " " + poolLen + "</span>";
   }
   /* Verbatim excerpt only: the author's exact words (first sentence, capped
      at ~200 chars). Never a paraphrase — the Verbatim Rule forbids editors. */
@@ -1434,7 +1928,7 @@
       box.querySelector("blockquote").innerHTML = expanded ? excerptHtml : fullHtml;
       box.querySelector(".zone-label").textContent = expanded ? labelText : fullLabelText;
       toggle.setAttribute("aria-expanded", String(!expanded));
-      toggle.textContent = expanded ? buttonLabel : "Show summary";
+      toggle.textContent = expanded ? buttonLabel : T("zone.summary");
     });
     wrap.appendChild(toggle);
     return wrap;
@@ -1448,18 +1942,24 @@
     head.innerHTML = "<p>" + selectionBadge(cycle, item, p) + "</p>" +
       '<p class="hint">' + esc(cycleLabel(cycle)) + "</p>" +
       stageHtml(displayPipeline(cycle, item.pipeline)) +
-      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong>" + stateSuffix(p) + " \u00b7 " + esc(p.topic) + " \u00b7 " + p.votes + " votes</p>";
+      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong>" + stateSuffix(p) + langSuffix(p) + " \u00b7 " + esc(Ttopic(p.topic)) + " \u00b7 " + esc(votesLabel(p.votes)) + "</p>";
     li.appendChild(head);
-    li.appendChild(zoneExpander("zone-post", "Citizen Post \u2014 excerpt, verbatim", "Citizen Post \u2014 in full, verbatim",
-      esc(briefExcerpt(p.body)), esc(p.body), "Read verbatim in full"));
-    li.appendChild(zoneExpander("zone-answer", "Official Answer \u2014 excerpt", "Official Answer \u2014 in full",
-      esc(briefExcerpt(displayAnswer(item.answer))), esc(displayAnswer(item.answer)), "Read answer in full"));
+    var postExpander = zoneExpander("zone-post", T("zone.post.excerpt"), T("zone.post.full"),
+      esc(briefExcerpt(p.body)), esc(p.body), T("zone.post.read"));
+    li.appendChild(postExpander);
+    var translateSlot = document.createElement("div");
+    translateSlot.className = "translate-slot";
+    translateSlot.setAttribute("data-post", p.id);
+    li.appendChild(translateSlot);
+    mountTranslateSlots(li);
+    li.appendChild(zoneExpander("zone-answer", T("zone.answer.excerpt"), T("zone.answer.full"),
+      esc(briefExcerpt(displayAnswer(item.answer))), esc(displayAnswer(item.answer)), T("zone.answer.read")));
     var row = document.createElement("div");
     row.className = "btn-row";
     var record = document.createElement("button");
     record.type = "button";
     record.className = "btn btn-small";
-    record.textContent = "See full record";
+    record.textContent = T("feed.fullrecord");
     record.addEventListener("click", function () {
       threadSelect($("priorSelect"), renderPriorCard).value = p.id;
       showView("prior");
@@ -1480,12 +1980,14 @@
     var li = document.createElement("li");
     li.className = "card next-item";
     li.innerHTML = "<p>" + selectionBadge(cycle, item, p) + "</p>" + stageHtml(displayPipeline(cycle, item.pipeline)) +
-      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong>" + stateSuffix(p) + " \u00b7 " + esc(p.topic) + "</p>" +
-      '<div class="zone zone-post"><span class="zone-label">Citizen Post \u2014 verbatim in full</span>' +
+      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong>" + stateSuffix(p) + langSuffix(p) + " \u00b7 " + esc(Ttopic(p.topic)) + "</p>" +
+      '<div class="zone zone-post"><span class="zone-label">' + esc(T("zone.post.next")) + "</span>" +
       "<blockquote>" + esc(p.body) + "</blockquote>" +
-      '<p class="hint">\u2014 ' + esc(author.name) + " \u00b7 selected for next week\u2019s briefing</p></div>" +
-      '<p class="hint">Answer coming ' + esc(briefingWednesday(cycle)) + ". The committee is still formulating it.</p>";
+      '<p class="hint">' + esc(Tf("next.selectedfor", { name: author.name })) + "</p></div>" +
+      '<p class="hint">' + esc(Tf("next.answercoming", { date: briefingWednesday(cycle) })) + "</p>" +
+      translateSlotHtml(p);
     li.appendChild(buildWonderZone(p));
+    mountTranslateSlots(li);
     return li;
   }
 
@@ -1500,26 +2002,25 @@
   /* Committee-only visibility (TY, Oct 28): in the real product drafts
      and editing are committee-only; the demo shows them publicly for
      evaluation. Display text only — never gates or hides the controls. */
-  var WONDER_VISIBILITY_NOTE = "Demo only: drafts and editing are committee-only in the real product and shown here for evaluation. The public sees only approved answers.";
+  function wonderVisibilityNote() { return T("wonder.visibility"); }
+  function wonderSimulatedNote() { return T("wonder.simulated"); }
   function buildWonderZone(p) {
     var wonderBox = document.createElement("div");
     wonderBox.className = "zone zone-answer";
     var draftBtn = document.createElement("button");
     draftBtn.type = "button";
     draftBtn.className = "btn btn-small";
-    draftBtn.textContent = "Draft answer with Wonder";
+    draftBtn.textContent = T("wonder.draft");
     var wonderVisibility = document.createElement("p");
     wonderVisibility.className = "hint";
-    wonderVisibility.textContent = WONDER_VISIBILITY_NOTE;
+    wonderVisibility.textContent = wonderVisibilityNote();
     var wonderStatus = document.createElement("p");
     wonderStatus.className = "hint";
     wonderBox.appendChild(draftBtn);
     wonderBox.appendChild(wonderVisibility);
     wonderBox.appendChild(wonderStatus);
     function draftLabel() {
-      return wonderEdited[p.id]
-        ? "AI-drafted by Muse Wonder, edited by committee \u2014 pending committee review"
-        : "AI-drafted by Muse Wonder \u2014 pending committee review";
+      return wonderEdited[p.id] ? T("wonder.edited") : T("wonder.pending");
     }
     function showDraft() {
       var draft = wonderDrafts[p.id];
@@ -1527,12 +2028,12 @@
       var box = document.createElement("div");
       box.innerHTML = '<span class="zone-label">' + esc(draftLabel()) + "</span>" +
         "<p>" + esc(draft) + "</p>" +
-        '<p class="hint">' + esc(WONDER_VISIBILITY_NOTE) + "</p>" +
-        '<p class="hint">Demo only: in the real product the committee reviews, edits, and approves drafts; approval here is simulated and changes only what is displayed.</p>';
+        '<p class="hint">' + esc(wonderVisibilityNote()) + "</p>" +
+        '<p class="hint">' + esc(wonderSimulatedNote()) + "</p>";
       var editBtn = document.createElement("button");
       editBtn.type = "button";
       editBtn.className = "btn btn-small";
-      editBtn.textContent = "Edit draft";
+      editBtn.textContent = T("wonder.edit");
       editBtn.addEventListener("click", function () {
         /* Local UI operation on the returned draft text only: no model
            call, no re-draft. Save updates the session-only draft. */
@@ -1541,12 +2042,12 @@
         ta.value = wonderDrafts[p.id];
         ta.rows = 6;
         ta.style.width = "100%";
-        ta.setAttribute("aria-label", "Edit the committee draft answer");
+        ta.setAttribute("aria-label", T("wonder.edit.aria"));
         box.appendChild(ta);
         var saveBtn = document.createElement("button");
         saveBtn.type = "button";
         saveBtn.className = "btn btn-small";
-        saveBtn.textContent = "Save edit";
+        saveBtn.textContent = T("wonder.save");
         saveBtn.addEventListener("click", function () {
           if (!ta.value.trim()) { renderBriefing(); return; }
           wonderDrafts[p.id] = ta.value;
@@ -1556,7 +2057,7 @@
         var cancelBtn = document.createElement("button");
         cancelBtn.type = "button";
         cancelBtn.className = "btn btn-small";
-        cancelBtn.textContent = "Cancel";
+        cancelBtn.textContent = T("wonder.cancel");
         cancelBtn.addEventListener("click", function () { renderBriefing(); });
         box.appendChild(saveBtn);
         box.appendChild(document.createTextNode(" "));
@@ -1566,7 +2067,7 @@
       var approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "btn btn-small";
-      approveBtn.textContent = "Approve draft";
+      approveBtn.textContent = T("wonder.approve");
       approveBtn.addEventListener("click", function () {
         wonderApproved[p.id] = true;
         renderBriefing();
@@ -1578,11 +2079,11 @@
     }
     draftBtn.addEventListener("click", function () {
       draftBtn.disabled = true;
-      wonderStatus.textContent = "Drafting with Muse Wonder (" + PodiumAI.WONDER_MODEL + ")...";
+      wonderStatus.textContent = Tf("wonder.drafting", { model: PodiumAI.WONDER_MODEL });
       PodiumAI.draftCommitteeAnswer(p).then(function (draft) {
         draftBtn.disabled = false;
         if (!draft) {
-          wonderStatus.textContent = "Muse Wonder is unavailable (no session key, or the call failed) \u2014 the seeded answer above stands. Answers are never drafted by Spark.";
+          wonderStatus.textContent = T("wonder.unavailable");
           return;
         }
         wonderDrafts[p.id] = draft;
@@ -1594,7 +2095,7 @@
     });
     if (wonderApproved[p.id] && wonderDrafts[p.id]) {
       var done = document.createElement("div");
-      done.innerHTML = '<p><span class="status-pill">Approved by committee (demo)</span></p>' +
+      done.innerHTML = '<p><span class="status-pill">' + esc(T("wonder.approved")) + "</span></p>" +
         "<p>" + esc(wonderDrafts[p.id]) + "</p>";
       wonderBox.appendChild(done);
     } else if (wonderDrafts[p.id]) {
@@ -1616,7 +2117,7 @@
   function currentCycle() { return PodiumStore.currentCycleId(state, etNow()); }
   /* Render-time "(voting now)" marker: the derived current cycle is the
      voting one; static labels carry no marker since the rollover. */
-  function cycleLabel(c) { return c ? c.label + (c.id === currentCycle() ? " (voting now)" : "") : ""; }
+  function cycleLabel(c) { return c ? c.label + (c.id === currentCycle() ? " (" + T("cycle.voting") + ")" : "") : ""; }
   /* Single parsing implementation lives in PodiumStore (same flip as Replay).
      The year always comes from the cycle's own votingStart, never the clock. */
   function cycleDateTimeFor(c, str) {
@@ -1638,7 +2139,7 @@
     var pl = $("pipelineList");
     pl.innerHTML = "";
     if (thisWeek) {
-      $("briefingTitle").textContent = "This week\u2019s briefing \u2014 " + thisWeek.briefingAt;
+      $("briefingTitle").textContent = Tf("briefing.title", { date: thisWeek.briefingAt });
       PodiumStore.itemsForCycle(state, thisWeek.id).forEach(function (item) {
         pl.appendChild(briefingSummaryCard(thisWeek, item));
       });
@@ -1663,11 +2164,11 @@
          cutoff removes unselected posts, so recounting would rewrite history. */
       var picked = PodiumStore.postById(state, drawn.randomPostId);
       var rows = [
-        ["Cycle", cycleLabel(drawn) + " (" + drawn.range + ")"],
-        ["Pool frozen", drawn.cutoffAt + " \u2014 " + drawn.poolSize + " eligible posts (winner and winner-matching copies excluded), published before the draw"],
-        ["Beacon pulse", drawn.beaconTime + " \u2014 value " + drawn.beaconHex + " (numeric excerpt " + drawn.beaconNum + ")"],
-        ["Computation", drawn.beaconNum + " mod " + drawn.poolSize + " = " + (drawn.position - 1) + " \u2192 +1 = post #" + drawn.position],
-        ["Selected", picked ? ("\u201c" + excerpt(picked.body, 80) + "\u201d") : "\u2014"]
+        [T("draw.cycle"), cycleLabel(drawn) + " (" + drawn.range + ")"],
+        [T("draw.frozen"), Tf("draw.frozen.val", { cutoff: drawn.cutoffAt, n: drawn.poolSize })],
+        [T("draw.beacon"), Tf("draw.beacon.val", { time: drawn.beaconTime, hex: drawn.beaconHex, num: drawn.beaconNum })],
+        [T("draw.computation"), Tf("draw.computation.val", { num: drawn.beaconNum, size: drawn.poolSize, r: drawn.position - 1, pos: drawn.position })],
+        [T("draw.selected"), picked ? ("\u201c" + excerpt(picked.body, 80) + "\u201d") : "\u2014"]
       ];
       rows.forEach(function (r) {
         var dt = document.createElement("dt"); dt.textContent = r[0];
@@ -1687,7 +2188,7 @@
           var by = PodiumStore.citizenById(state, p.authorId);
           li.innerHTML = "<strong>" + esc(by.name) + "</strong>" + stateSuffix(p) + " " +
             '<span class="ref-code">' + esc(p.ref || "") + "</span> \u201c" + esc(excerpt(p.body, 120)) + "\u201d \u2014 " +
-            (isWinner ? "already has the briefing\u2019s top slot" : "anti-flood deduplication (content matches the winner\u2019s)") + " ";
+            (isWinner ? T("draw.winner") : T("draw.dupe")) + " ";
           var full = document.createElement("div");
           full.hidden = true;
           full.innerHTML = "<blockquote>" + esc(p.body) + "</blockquote>";
@@ -1695,12 +2196,12 @@
           var toggle = document.createElement("button");
           toggle.type = "button";
           toggle.className = "btn btn-small";
-          toggle.textContent = "Read full post";
+          toggle.textContent = T("draw.readfull");
           toggle.setAttribute("aria-expanded", "false");
           toggle.addEventListener("click", function () {
             full.hidden = !full.hidden;
             toggle.setAttribute("aria-expanded", String(!full.hidden));
-            toggle.textContent = full.hidden ? "Read full post" : "Collapse";
+            toggle.textContent = full.hidden ? T("draw.readfull") : T("draw.collapse");
           });
           li.appendChild(document.createTextNode(" "));
           li.appendChild(toggle);
@@ -1744,7 +2245,7 @@
       var p = PodiumStore.postById(state, b.postId);
       var o = document.createElement("option");
       o.value = b.postId;
-      o.textContent = cycleLabel(c) + " \u00b7 " + (b.selection === "top" ? "top-voted" : "random draw") + " \u00b7 " + (p.ref || "") + " \u00b7 " + excerpt(p.body, 40);
+      o.textContent = cycleLabel(c) + " \u00b7 " + (b.selection === "top" ? T("thread.top") : T("thread.random")) + " \u00b7 " + (p.ref || "") + " \u00b7 " + excerpt(p.body, 40);
       sel.appendChild(o);
     });
     var d = defaultAiredBriefing();
@@ -1772,7 +2273,7 @@
   }
   function selectionTitle(b) {
     var c = PodiumStore.cycleById(state, b.cycleId);
-    return esc(cycleLabel(c)) + " \u00b7 " + (b.selection === "top" ? "Top-voted selection" : "Random-draw selection");
+    return esc(cycleLabel(c)) + " \u00b7 " + (b.selection === "top" ? T("seltitle.top") : T("seltitle.random"));
   }
   function renderPrior() {
     threadSelect($("priorSelect"), renderPriorCard);
@@ -1786,25 +2287,27 @@
     var html = "<h3>" + selectionTitle(b) + "</h3>" +
       stageHtml(displayPipeline(PodiumStore.cycleById(state, b.cycleId), b.pipeline)) +
       '<p><span class="ref-code">' + esc(p.ref || "") + "</span></p>" +
-      '<div class="zone zone-post"><span class="zone-label">Citizen Post \u2014 verbatim, final</span>' +
+      '<div class="zone zone-post"><span class="zone-label">' + esc(T("zone.post.final")) + "</span>" +
       "<blockquote>" + esc(p.body) + "</blockquote>" +
-      '<p class="hint">\u2014 ' + esc(author.name) + stateSuffix(p) + " \u00b7 " + esc(p.topic) + " \u00b7 " + votesLabel(p.votes) + "</p></div>" +
-      '<div class="zone zone-answer"><span class="zone-label">Official Answer</span>' +
+      '<p class="hint">\u2014 ' + esc(author.name) + stateSuffix(p) + langSuffix(p) + " \u00b7 " + esc(Ttopic(p.topic)) + " \u00b7 " + votesLabel(p.votes) + "</p></div>" +
+      translateSlotHtml(p) +
+      '<div class="zone zone-answer"><span class="zone-label">' + esc(T("thread.answer")) + "</span>" +
       '<p><span class="ref-code">' + esc(answerCode(p)) + "</span></p>" +
       "<p>" + esc(displayAnswer(b.answer)) + "</p></div>";
     var last = b.updates[b.updates.length - 1];
     if (last) {
-      html += '<div class="zone zone-answer"><span class="zone-label">Most recent update</span>' +
+      html += '<div class="zone zone-answer"><span class="zone-label">' + esc(T("prior.updatelatest")) + "</span>" +
         '<p><span class="ref-code">' + esc(updateCode(p, b.updates.length - 1)) + "</span> <strong>" + esc(last.date) + "</strong></p>" +
         "<p>" + esc(last.text) + "</p>" +
-        '<p>Status: <span class="status-pill">' + esc(b.trackerStatus) + "</span>" +
+        '<p>' + esc(T("prior.status")) + ' <span class="status-pill">' + esc(Tstatus(b.trackerStatus)) + "</span>" +
         (b.trackerStatus === "No Action" && b.officialReason ? " \u2014 " + esc(b.officialReason) : "") + "</p></div>";
     }
     card.innerHTML = html;
+    mountTranslateSlots(card);
     var link = document.createElement("button");
     link.type = "button";
     link.className = "btn btn-small";
-    link.textContent = "Status updates for " + (p.ref || "this post") + " \u2192";
+    link.textContent = Tf("prior.tostatus", { ref: p.ref || T("thread.thispost") });
     link.addEventListener("click", function () {
       threadSelect($("statusSelect"), renderStatusCard).value = p.id;
       showView("status");
@@ -1821,16 +2324,16 @@
     var author = PodiumStore.citizenById(state, p.authorId);
     var card = $("statusCard");
     var html = "<h3>" + selectionTitle(b) + "</h3>" +
-      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> " + esc(author.name) + stateSuffix(p) + ' \u00b7 Status: <span class="status-pill">' + esc(b.trackerStatus) + "</span>" +
+      '<p><span class="ref-code">' + esc(p.ref || "") + "</span> " + esc(author.name) + stateSuffix(p) + langSuffix(p) + " \u00b7 " + esc(T("prior.status")) + ' <span class="status-pill">' + esc(Tstatus(b.trackerStatus)) + "</span>" +
       (b.trackerStatus === "No Action" && b.officialReason ? " \u2014 " + esc(b.officialReason) : "") + "</p>" +
-      "<h4>Dated progress updates</h4><ul class=\"updates\">" +
+      "<h4>" + esc(T("status.dated")) + "</h4>" + '<ul class="updates">' +
       b.updates.map(function (u, i) { return "<li><span class=\"ref-code\">" + esc(updateCode(p, i)) + "</span> <strong>" + esc(u.date) + ":</strong> " + esc(u.text) + "</li>"; }).join("") +
       "</ul>";
     card.innerHTML = html;
     var back = document.createElement("button");
     back.type = "button";
     back.className = "btn btn-small";
-    back.textContent = "\u2190 Post and answer for " + (p.ref || "this post");
+    back.textContent = Tf("status.toprior", { ref: p.ref || T("thread.thispost") });
     back.addEventListener("click", function () {
       threadSelect($("priorSelect"), renderPriorCard).value = p.id;
       showView("prior");
@@ -1887,8 +2390,8 @@
   }
   function copyShareLink(url, btn) {
     copyText(url, function (ok) {
-      btn.textContent = ok ? "Link copied \u2713" : "Copy failed";
-      setTimeout(function () { btn.textContent = "Share"; }, 2000);
+      btn.textContent = ok ? T("share.copied") : T("share.failed");
+      setTimeout(function () { btn.textContent = T("share.button"); }, 2000);
     });
   }
   function clearDeepLink() {
@@ -2003,7 +2506,7 @@
     var b = document.createElement("button");
     b.type = "button";
     b.className = "btn btn-small";
-    b.textContent = label || "See full record";
+    b.textContent = label || T("feed.fullrecord");
     b.addEventListener("click", function () {
       threadSelect($("priorSelect"), renderPriorCard).value = postId;
       showView("prior");
@@ -2027,12 +2530,12 @@
   function renderUpcoming(main) {
     var nx = nextAiring();
     var h = document.createElement("h3");
-    h.textContent = nx.live ? "The briefing is on air now" : "Next briefing: " + nx.label + ", 1:00 PM ET";
+    h.textContent = nx.live ? T("watch.onair") : Tf("watch.next", { label: nx.label });
     main.appendChild(h);
     var cyc = agendaCycle();
     if (!cyc) {
       var none = document.createElement("p");
-      none.textContent = "Agenda to be announced after the next draw.";
+      none.textContent = T("watch.noagenda");
       main.appendChild(none);
     } else if (!PodiumStore.itemsForCycle(state, cyc.id).length) {
       /* Agenda known but nothing drawn yet (the static seed never draws
@@ -2040,16 +2543,16 @@
          sentence appears only while the stored draw datetime is still in
          the future, so the note stays true after the date passes too. */
       var pend = document.createElement("p");
-      var txt = "Selections for this briefing have not been drawn yet.";
+      var txt = T("watch.noselect");
       if (cyc.drawAt) {
         var dAt = cycleDateTimeFor(cyc, cyc.drawAt);
-        if (dAt && dAt > etNow()) txt += " Draw: " + cyc.drawAt + ".";
+        if (dAt && dAt > etNow()) txt += " " + Tf("watch.draw", { date: cyc.drawAt });
       }
       pend.textContent = txt;
       main.appendChild(pend);
     } else {
       var sub = document.createElement("p");
-      sub.textContent = "On the air bill (" + cycleLabel(cyc) + " selections):";
+      sub.textContent = Tf("watch.onbill", { cycle: cycleLabel(cyc) });
       main.appendChild(sub);
       var ul = document.createElement("ul");
       ul.className = "watch-library";
@@ -2059,15 +2562,15 @@
         var li = document.createElement("li");
         li.className = "card";
         li.innerHTML = "<p>" + selectionBadge(cyc, item, p) + "</p>" +
-          '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong> \u00b7 " + esc(p.topic) + "</p>";
-        li.appendChild(fullRecordButton(p.id, "Full record: " + (p.ref || "")));
+          '<p><span class="ref-code">' + esc(p.ref || "") + "</span> <strong>" + esc(author.name) + "</strong> \u00b7 " + esc(Ttopic(p.topic)) + "</p>";
+        li.appendChild(fullRecordButton(p.id, Tf("feed.fullrecord.ref", { ref: p.ref || "" })));
         ul.appendChild(li);
       });
       main.appendChild(ul);
     }
     var note = document.createElement("p");
     note.className = "hint";
-    note.textContent = "For a live stream or a pre-recorded screening, whichever is next. If you are on this tab when the briefing airs, the stream starts automatically.";
+    note.textContent = T("watch.hint");
     main.appendChild(note);
   }
   function liveItems(cyc) {
@@ -2080,7 +2583,7 @@
     bar.className = "player-bar";
     var badge = document.createElement("span");
     badge.className = "live-badge";
-    badge.textContent = live ? "LIVE" : "REPLAY";
+    badge.textContent = live ? T("watch.live.badge") : T("watch.replay.badge");
     bar.appendChild(badge);
     return bar;
   }
@@ -2088,9 +2591,9 @@
     var cv = document.createElement("canvas");
     cv.width = 640;
     cv.height = 300;
-    cv.setAttribute("aria-label", live ? "Live broadcast picture (demo simulation)" : "Replay picture (demo simulation)");
+    cv.setAttribute("aria-label", live ? T("watch.slate.live.aria") : T("watch.slate.replay.aria"));
     cv.setAttribute("role", "img");
-    cv.textContent = "Demo simulation of the weekly briefing broadcast. No real stream.";
+    cv.textContent = T("watch.slate.text");
     player.appendChild(cv);
     var bar = replayBar(live);
     var unmute = document.createElement("button");
@@ -2098,7 +2601,7 @@
     unmute.className = "btn btn-small unmute-btn";
     unmute.id = "watchUnmute";
     unmute.hidden = true;
-    unmute.textContent = "Tap to unmute \u2014 join with sound";
+    unmute.textContent = T("watch.unmute");
     unmute.addEventListener("click", function () { attemptLiveAudio(); });
     bar.appendChild(unmute);
     var snd = document.createElement("span");
@@ -2118,7 +2621,7 @@
       /* Fallback: file missing or unloadable — the existing simulated
          slate for the same cycle, so the tab never breaks or blanks. */
       player.innerHTML = "";
-      renderSlateReplay(player, false, "Replay \u2014 " + cycleLabel(rc));
+      renderSlateReplay(player, false, Tf("watch.replay.title", { cycle: cycleLabel(rc) }));
     });
     player.appendChild(v);
     player.appendChild(replayBar(false));
@@ -2129,11 +2632,11 @@
     var rc = replayId ? PodiumStore.cycleById(state, replayId) : null;
     if (replayId) {
       items = liveItems(rc);
-      title = "Replay \u2014 " + cycleLabel(rc);
+      title = Tf("watch.replay.title", { cycle: cycleLabel(rc) });
       live = false;
     } else {
       items = liveItems(agendaCycle());
-      title = "Live \u2014 This Week\u2019s Briefing";
+      title = T("watch.live.title");
       live = true;
     }
     var player = document.createElement("div");
@@ -2168,19 +2671,19 @@
     frag.appendChild(badge);
     var z = document.createElement("div");
     z.className = "zone zone-post";
-    z.innerHTML = '<span class="zone-label">Citizen Post \u2014 verbatim</span>' +
-      '<p><span class="ref-code">' + esc(p.ref || "") + "</span></p>" +
+    z.innerHTML = '<span class="zone-label">' + esc(T("zone.post.screening")) + "</span>" +
+      '<p><span class="ref-code">' + esc(p.ref || "") + "</span>" + langSuffix(p) + "</p>" +
       "<blockquote>" + esc(p.body) + "</blockquote>";
     frag.appendChild(z);
     if (item.answer) {
       var za = document.createElement("div");
       za.className = "zone zone-answer";
-      za.innerHTML = '<span class="zone-label">Committee Answer \u2014 verbatim</span>' +
+      za.innerHTML = '<span class="zone-label">' + esc(T("zone.answer.screening")) + "</span>" +
         '<p><span class="ref-code">' + esc(answerCode(p)) + "</span></p>" +
         "<blockquote>" + esc(displayAnswer(item.answer)) + "</blockquote>";
       frag.appendChild(za);
     }
-    frag.appendChild(fullRecordButton(p.id, "Full record: " + (p.ref || "")));
+    frag.appendChild(fullRecordButton(p.id, Tf("feed.fullrecord.ref", { ref: p.ref || "" })));
     return frag;
   }
   function buildNowReading(live, items) {
@@ -2196,29 +2699,29 @@
          slate replay paths. */
       nr.setAttribute("data-idx", 0);
       var h = document.createElement("h3");
-      h.textContent = "Screening";
+      h.textContent = T("watch.screening");
       nr.appendChild(h);
       items.forEach(function (item) { nr.appendChild(screeningEntry(item)); });
-      if (!items.length) nr.appendChild(document.createTextNode("Agenda to be announced."));
+      if (!items.length) nr.appendChild(document.createTextNode(T("watch.noitems")));
       return nr;
     }
     var idx = (items.length > 1 && etParts().minuteNum >= 15) ? 1 : 0;
     nr.setAttribute("data-idx", idx);
     var first = items[idx] ? PodiumStore.postById(state, items[idx].postId) : null;
     if (!first) {
-      nr.textContent = "Agenda to be announced.";
+      nr.textContent = T("watch.noitems");
       return nr;
     }
     var hl = document.createElement("h3");
-    hl.textContent = "Now reading (" + (idx + 1) + " of " + items.length + ")";
+    hl.textContent = Tf("watch.nowreading", { i: idx + 1, n: items.length });
     nr.appendChild(hl);
     var z = document.createElement("div");
     z.className = "zone zone-post";
-    z.innerHTML = '<span class="zone-label">Citizen Post \u2014 verbatim</span>' +
+    z.innerHTML = '<span class="zone-label">' + esc(T("zone.post.screening")) + "</span>" +
       '<p><span class="ref-code">' + esc(first.ref || "") + "</span></p>" +
       "<blockquote>" + esc(first.body) + "</blockquote>";
     nr.appendChild(z);
-    nr.appendChild(fullRecordButton(first.id, "Full record: " + (first.ref || "")));
+    nr.appendChild(fullRecordButton(first.id, Tf("feed.fullrecord.ref", { ref: first.ref || "" })));
     return nr;
   }
   function refreshNowReading(nrEl) {
@@ -2234,18 +2737,17 @@
      "Replay processing, available soon" placeholder instead of silence
      and never an old replay mislabeled as the new one. The player itself
      stays the demo-only simulated slate. */
-  var REPLAY_PROCESSING_TEXT = "Replay processing, available soon";
   function replayPlaceholder(c) {
     var p = document.createElement("p");
     p.className = "hint";
-    p.textContent = REPLAY_PROCESSING_TEXT + " \u2014 " + cycleLabel(c) + " aired " + c.briefingAt + ".";
+    p.textContent = Tf("watch.processing.full", { cycle: cycleLabel(c), date: c.briefingAt });
     return p;
   }
   function stopReplayButton(main) {
     var stop = document.createElement("button");
     stop.type = "button";
     stop.className = "btn btn-small";
-    stop.textContent = "Stop replay";
+    stop.textContent = T("watch.stop");
     stop.addEventListener("click", function () { renderWatch(); window.scrollTo(0, 0); });
     main.appendChild(stop);
   }
@@ -2255,7 +2757,7 @@
     var past = PodiumStore.replayCycles(state, etNow());
     if (!past.length) {
       var li0 = document.createElement("li");
-      li0.textContent = "No past briefings yet.";
+      li0.textContent = T("watch.library.empty");
       ul.appendChild(li0);
       return;
     }
@@ -2264,9 +2766,9 @@
       li.className = "card";
       var names = PodiumStore.itemsForCycle(state, c.id).map(function (b) {
         var p = PodiumStore.postById(state, b.postId);
-        return (b.selection === "top" ? "Top-voted" : "Random draw") + " " + (p.ref || "");
+        return (b.selection === "top" ? T("lib.top") : T("lib.random")) + " " + (p.ref || "");
       }).join("; ");
-      li.innerHTML = "<p><strong>" + esc(cycleLabel(c)) + "</strong> \u00b7 aired " + esc(c.briefingAt) + "</p>" +
+      li.innerHTML = "<p><strong>" + esc(cycleLabel(c)) + "</strong> \u00b7 " + esc(T("watch.library.aired")) + " " + esc(c.briefingAt) + "</p>" +
         '<p class="hint">' + esc(names) + "</p>";
       if (!PodiumStore.replayReady(c)) {
         li.appendChild(replayPlaceholder(c));
@@ -2274,7 +2776,7 @@
         var play = document.createElement("button");
         play.type = "button";
         play.className = "btn btn-small";
-        play.textContent = c.replaySrc ? "Play video" : "Play this screening";
+        play.textContent = c.replaySrc ? T("watch.play.video") : T("watch.play.screening");
         play.addEventListener("click", function () { playReplay(c.id); });
         li.appendChild(play);
       }
@@ -2333,10 +2835,10 @@
   function setUnmuteUI(mode) {
     var b = $("watchUnmute"), n = $("watchSoundNote");
     if (!b || !n) return;
-    if (mode === "live") { b.hidden = true; n.textContent = "Live with sound."; }
-    else if (mode === "blocked") { b.hidden = false; n.textContent = "Sound blocked by the browser: picture is live, audio is muted."; }
-    else if (mode === "unavailable") { b.hidden = true; n.textContent = "Audio unavailable in this browser."; }
-    else { b.hidden = true; n.textContent = "Starting\u2026"; }
+    if (mode === "live") { b.hidden = true; n.textContent = T("watch.sound.live"); }
+    else if (mode === "blocked") { b.hidden = false; n.textContent = T("watch.sound.blocked"); }
+    else if (mode === "unavailable") { b.hidden = true; n.textContent = T("watch.sound.unavailable"); }
+    else { b.hidden = true; n.textContent = T("watch.sound.starting"); }
   }
   function attemptLiveAudio() {
     var ctx = ensureLiveAudio();
@@ -2380,7 +2882,7 @@
       g.fillRect(0, 0, W, 8);
       g.fillStyle = live ? "#e31c3d" : "#3e94cf";
       g.font = "bold 34px Georgia, serif";
-      g.fillText(live ? "\u25cf LIVE" : "REPLAY", 28, 64);
+      g.fillText(live ? "\u25cf " + T("watch.live") : T("watch.replay"), 28, 64);
       g.fillStyle = "#ffffff";
       g.font = "28px Georgia, serif";
       g.fillText("THE PODIUM", 28, 110);
@@ -2399,7 +2901,7 @@
       g.fillRect(28, 210, Math.max(2, 300 * level), 26);
       g.fillStyle = "#9aa3ad";
       g.font = "16px sans-serif";
-      g.fillText("DEMO SIMULATION \u2014 no real stream", 28, 268);
+      g.fillText(T("watch.slate.demo"), 28, 268);
       watchRAF = requestAnimationFrame(frame);
     }
     frame();
@@ -2417,7 +2919,7 @@
     var badge = $("watchTabLive");
     if (badge) badge.hidden = !live;
     var tab = document.querySelector('.main-nav .tab[data-view="watch"]');
-    if (tab) tab.setAttribute("aria-label", live ? "Watch Live, briefing on air now" : "Watch Live");
+    if (tab) tab.setAttribute("aria-label", live ? T("tab.watchlive.airing") : T("tab.watch"));
     if (currentView !== "watch" || watchOverride || watchSticky) return;
     var desired = live ? "live" : "upcoming";
     if (watchShownState && watchShownState !== desired) { renderWatch(); return; }
@@ -2454,7 +2956,7 @@
   function showAiMode(want) {
     aiModeShown = want;
     var el = $("aiMode");
-    el.textContent = want === "live" ? "AI: live (Muse Spark)" : "AI: local fallback";
+    el.textContent = want === "live" ? T("ai.live") : T("ai.stub");
     el.classList.toggle("is-live", want === "live");
   }
   function renderAiMode() {
@@ -2518,10 +3020,180 @@
     } else if (e.key === DRAFT_KEY && document.activeElement !== composerText) {
       restoreDraft();
       renderComposerGate();
+    } else if (e.key === PS().LANG_KEY) {
+      /* Another tab switched the interface language: re-render the chrome
+         in place. Display-only; no post, vote, draw, or briefing data moves. */
+      PS().sync();
+      var sel = $("langSel");
+      if (sel) sel.value = uiLang();
+      applyStaticChrome();
+      renderCurrentView();
     }
   });
 
+  /* ---------- interface language ---------- */
+  /* Switching languages re-renders the chrome immediately and changes no
+     post, vote, draw, or briefing data — every string below is display-only.
+     Static markup keeps its English text; this pass overwrites it from the
+     table on boot and on every switch, so English stays pixel-identical
+     (the table holds the verbatim current wording) and Spanish covers the
+     whole chrome. */
+  function refillTopicSelects() {
+    var tf = $("topicFilter"), ct = $("composerTopic");
+    var tfv = tf ? tf.value : "", ctv = ct ? ct.value : "";
+    if (tf) fillTopics(tf, true);
+    if (ct) fillTopics(ct, false);
+    if (tf) tf.value = tfv;
+    if (ct) ct.value = ctv;
+  }
+    /* Null-safe static setters: the committed test runner loads app.js
+     against a partial DOM, so boot-time chrome application must never
+     throw on a missing element. */
+  function setText(id, v) { var el = $(id); if (el) el.textContent = v; }
+  function setHtml(id, v) { var el = $(id); if (el) el.innerHTML = v; }
+  function setAttr(id, a, v) { var el = $(id); if (el) el.setAttribute(a, v); }
+  function setPh(id, v) { var el = $(id); if (el) el.setAttribute("placeholder", v); }
+  function applyStaticChrome() {
+    document.documentElement.lang = uiLang();
+    document.title = T("doc.title");
+    setText("skipLink", T("skip.main"));
+    setText("govText", T("gov.text"));
+    setText("govHow", T("gov.how"));
+    setText("brandSub", T("brand.sub"));
+    setAttr("mainNav", "aria-label", T("nav.primary"));
+    document.querySelectorAll(".main-nav .tab").forEach(function (t) {
+      var view = t.getAttribute("data-view");
+      var badge = t.querySelector(".tab-live");
+      t.textContent = T("tab." + view) + " ";
+      if (badge) { badge.textContent = T("tab.watchlive.badge"); t.appendChild(badge); }
+    });
+    setAttr("ruleCard", "aria-label", T("rule.reminder"));
+    setText("ruleHeading", T("rule.heading"));
+    setHtml("ruleP1", T("rule.p1"));
+    setText("ruleP2", T("rule.p2"));
+    setText("ruleP3", T("rule.p3"));
+    setText("readFullRule", T("rule.readfull"));
+    setText("fineSummary", T("fine.summary"));
+    setText("fineLede", T("fine.lede"));
+    setText("statementsHeading", T("fine.statements"));
+    setText("finePurpose", T("fine.purpose"));
+    Array.prototype.forEach.call(document.querySelectorAll("#fineList li"), function (li, i) {
+      li.textContent = T("fine.li" + (i + 1));
+    });
+    setText("citizenStateLabel", T("citizen.state.label"));
+    setAttr("citizenStateSel", "aria-label", T("citizen.state.aria"));
+    setAttr("citizenStateSel", "title", T("citizen.state.title"));
+    setText("langLabel", T("lang.label"));
+    setAttr("langSel", "aria-label", T("lang.label"));
+    setAttr("view-feed", "aria-label", T("feed.aria"));
+    setText("feedHeading", T("tab.feed"));
+    document.querySelectorAll(".subtabs .subtab").forEach(function (b) {
+      b.textContent = T("feed." + b.getAttribute("data-feed"));
+    });
+    setText("topicFilterLabel", T("feed.topic"));
+    setAttr("topicFilterWrap", "aria-label", T("feed.topicfilter.aria"));
+    setText("searchLabel", T("feed.search"));
+    setPh("searchInput", T("feed.search.ph"));
+    setText("pageSizeLabel", T("feed.perpage"));
+    setText("voteRule", T("feed.voterule"));
+    setText("prevPage", T("feed.prev"));
+    setText("nextPage", T("feed.next"));
+    setAttr("view-post", "aria-label", T("post.aria"));
+    setText("postHeading", T("tab.post"));
+    setAttr("miniRule", "aria-label", T("rule.reminder"));
+    setText("miniRuleStrong", T("post.rule.applies"));
+    setText("miniRuleText", T("post.rule.text"));
+    setText("composerTopicLabel", T("post.topic"));
+    setText("composerTopicHint", T("post.topic.hint"));
+    setText("timerHint", T("post.timer.hint"));
+    setText("composerTextLabel", T("post.address"));
+    setPh("composerText", T("post.text.ph"));
+    if ($("aiMode")) { aiModeShown = null; renderAiMode(); }
+    setText("publishNote", T("publish.note"));
+    setText("previewBtn", T("preview.hear"));
+    setAttr("orderList", "aria-label", T("feed.order.aria"));
+    setAttr("topicList", "aria-label", T("feed.topicfilter.aria"));
+    setAttr("demoBarGroup", "aria-label", T("watch.demo.aria"));
+    var hb = $("hearDraftBtn"), nv = $("hearNoVoice");
+    if (hb) hb.textContent = T("hear.draft");
+    if (nv) nv.textContent = T("hear.novoice");
+    setAttr("view-briefing", "aria-label", T("briefing.aria"));
+    setText("briefingLede1", T("briefing.lede1"));
+    setHtml("briefingLede2", T("briefing.lede2"));
+    setText("gotoWatchBtn", T("briefing.watch"));
+    setText("gotoWatchHint", T("briefing.watch.hint"));
+    setText("nextHeading", T("briefing.next"));
+    setText("nextHint", T("briefing.next.hint"));
+    setText("drawHeading", T("briefing.draw"));
+    setHtml("drawLede", T("briefing.draw.lede"));
+    setText("excludedHeading", T("briefing.draw.excluded"));
+    setText("drawReadonly", T("briefing.draw.readonly"));
+    setText("workedHeading", T("briefing.draw.worked"));
+    setHtml("workedBody", T("briefing.draw.worked.body"));
+    setText("committeeRule", T("briefing.draw.committee"));
+    setAttr("view-watch", "aria-label", T("watch.aria"));
+    setText("watchHeading", T("tab.watch"));
+    setText("watchLede", T("watch.lede"));
+    setHtml("demoBarHint", T("watch.demo"));
+    document.querySelectorAll("#watchDemoBar [data-watch-state]").forEach(function (b) {
+      b.textContent = T("watch." + b.getAttribute("data-watch-state"));
+    });
+    setText("watchLibraryHeading", T("watch.library"));
+    setText("backToBriefingBtn", T("watch.back"));
+    setText("watchSimNote", T("watch.simnote"));
+    setAttr("view-prior", "aria-label", T("prior.aria"));
+    setText("priorHeading", T("tab.prior"));
+    setText("priorLede", T("prior.lede"));
+    setText("priorSelectedLabel", T("thread.selected"));
+    setAttr("view-status", "aria-label", T("status.aria"));
+    setText("statusHeading", T("tab.status"));
+    setText("statusLede", T("status.lede"));
+    setText("statusSelectedLabel", T("thread.selected"));
+    setText("footerAbout", T("footer.about"));
+    setText("footerAboutText", T("brand.sub"));
+    setText("footerProcess", T("footer.process"));
+    setText("footerProcessChain", T("footer.process.chain"));
+    setText("footerNotices", T("footer.notices"));
+    setHtml("footerDemoNotice", T("footer.demonotice"));
+    setText("apiKeyLabel", T("footer.key"));
+    setText("apiKeyHint", T("footer.key.hint"));
+    setPh("apiKeyInput", T("footer.key.ph"));
+    setText("apiKeySave", T("footer.key.save"));
+    setText("apiKeyClear", T("footer.key.clear"));
+    setText("previewTitle", T("preview.title"));
+    setText("previewClose", T("preview.close"));
+    setText("previewPublish", T("preview.publish"));
+    setText("publishBtn", T("preview.publish"));
+    setText("citizenModalTitle", T("citizens.title"));
+    setText("citizenHint", T("citizens.hint"));
+    setText("citizenClose", T("citizens.cancel"));
+  }
+  function renderCurrentView() {
+    renderCitizen();
+    refillTopicSelects();
+    if (currentView === "feed") renderFeed();
+    else if (currentView === "briefing") renderBriefing();
+    else if (currentView === "prior") renderPrior();
+    else if (currentView === "status") renderStatus();
+    else if (currentView === "watch") renderWatch();
+    else if (currentView === "post") { updateOnePostNotice(); renderComposerGate(); }
+  }
+  function applyLanguage(l) {
+    PS().set(l);
+    document.documentElement.lang = uiLang();
+    var sel = $("langSel");
+    if (sel) sel.value = uiLang();
+    applyStaticChrome();
+    renderCurrentView();
+  }
+
   /* ---------- init ---------- */
+  var langSelInit = $("langSel");
+  if (langSelInit) {
+    langSelInit.value = uiLang();
+    langSelInit.addEventListener("change", function () { applyLanguage(langSelInit.value); });
+  }
+  applyStaticChrome();
   renderCitizen();
   updateOnePostNotice();
   restoreDraft();
@@ -2543,5 +3215,3 @@
   })();
   handleDeepLink();
 })();
-
-
